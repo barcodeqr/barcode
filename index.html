@@ -88,6 +88,13 @@
             
             // 読み取り誤りを減らすための簡易チェック（数値以外のノイズ対策など）
             if (!scannedCode) return;
+    // 信頼度チェック（0〜1）
+    const confidence = data.codeResult.start || 0;
+    if (confidence < 0.3) {
+        // 信頼度が低い読み取りは無視
+        isProcessing = false;
+        return;
+    }
 
             isProcessing = true; // 処理ロック
 
