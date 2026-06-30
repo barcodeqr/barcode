@@ -48,100 +48,113 @@
     <audio id="sound-pingpong" src="pingpong.mp3" preload="auto"></audio>
     <audio id="sound-boo" src="boo.mp3" preload="auto"></audio>
 
-    <script>
-        let code1 = null;
-        let code2 = null;
-        let isProcessing = false; // 連続読み取り防止フラグ
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
 
-        // オーディオ要素の取得
-        const soundPingpong = document.getElementById('sound-pingpong');
-        const soundBoo = document.getElementById('sound-boo');
+<script>
+    let code1 = null;
+    let code2 = null;
+    let isProcessing = false;
 
-        // QuaggaJSの初期化とカメラ起動
-        Quagga.init({
-            inputStream: {
-                name: "Live",
-                type: "LiveStream",
-                target: document.querySelector('#interactive'), // 映像を表示する要素
-                constraints: {
-                    facingMode: "environment" // 背面カメラを使用
-                },
+    const soundPingpong = document.getElementById('sound-pingpong');
+    const soundBoo = document.getElementById('sound-boo');
+
+    // QuaggaJS 初期化
+    Quagga.init({
+        inputStream: {
+            name: "Live",
+            type: "LiveStream",
+            target: document.querySelector('#interactive'),
+            constraints: {
+                facingMode: "environment"
             },
-            decoder: {
-                // 読み取りたいバーコードの種類を指定（JAN/EAN（日本の一般的な本や商品）を指定）
-                readers: ["ean_reader", "ean_8_reader", "code_128_reader"] 
-            }
-        }, function(err) {
-            if (err) {
-                console.error(err);
-                alert("カメラの起動に失敗しました。HTTPS通信環境か確認してください。");
-                return;
-            }
-            Quagga.start();
-        });
 
-        // バーコードが検出された時の処理
-        Quagga.onDetected(function(data) {
-            if (isProcessing) return; // 判定処理中はスキップ
+            // 🔥 読み取り範囲を中央に絞る（誤読が激減）
+            area: {
+                top: "40%",     // 上から40%
+                right: "10%",   // 右10%
+                left: "10%",    // 左10%
+                bottom: "40%"   // 下から40%
+            }
+        },
 
-            const scannedCode = data.codeResult.code;
-            
-            // 読み取り誤りを減らすための簡易チェック（数値以外のノイズ対策など）
-            if (!scannedCode) return;
-    // 信頼度チェック（0〜1）
-    const confidence = data.codeResult.start || 0;
-    if (confidence < 0.3) {
-        // 信頼度が低い読み取りは無視
-        isProcessing = false;
-        return;
+        locator: {
+            patchSize: "medium",
+            halfSample: true
+        },
+
+        // 🔥 locate を ON にすると精度が上がる
+        locate: true,
+
+        decoder: {
+            readers: ["ean_reader"]  // 読み取り種類を絞るとさらに精度UP
+        }
+    }, function(err) {
+        if (err) {
+            console.error(err);
+            alert("カメラ起動に失敗しました。HTTPS環境か確認してください。");
+            return;
+        }
+        Quagga.start();
+    });
+
+    // 読み取り時の処理
+    Quagga.onDetected(function(data) {
+        if (isProcessing) return;
+
+        const scannedCode = data.codeResult.code;
+        if (!scannedCode) return;
+
+        // 🔥 信頼度チェック（0〜1）
+        const confidence = data.codeResult.start || 0;
+        if (confidence < 0.3) {
+            // 信頼度が低い読み取りは無視
+            return;
+        }
+
+        isProcessing = true;
+
+        if (!code1) {
+            code1 = scannedCode;
+            document.getElementById('code1').innerText = code1;
+
+            // 同じバーコードの連続誤読防止
+            setTimeout(() => { isProcessing = false; }, 1500);
+
+        } else if (!code2) {
+            code2 = scannedCode;
+            document.getElementById('code2').innerText = code2;
+
+            checkCodes();
+        }
+    });
+
+    // 判定処理
+    function checkCodes() {
+        const msgElement = document.getElementById('judge-message');
+
+        if (code1 === code2) {
+            msgElement.innerText = "ーーー 一致（OK） ーーー";
+            msgElement.className = "match";
+            soundPingpong.play().catch(e => console.log("音再生エラー:", e));
+        } else {
+            msgElement.innerText = "【不一致（NG）】";
+            msgElement.className = "mismatch";
+            soundBoo.play().catch(e => console.log("音再生エラー:", e));
+        }
     }
 
-            isProcessing = true; // 処理ロック
+    // リセット
+    function resetSystem() {
+        code1 = null;
+        code2 = null;
+        isProcessing = false;
+        document.getElementById('code1').innerText = "-";
+        document.getElementById('code2').innerText = "-";
+        const msgElement = document.getElementById('judge-message');
+        msgElement.innerText = "";
+        msgElement.className = "";
+    }
+</script>
 
-            if (!code1) {
-                // 1つ目のバーコードを登録
-                code1 = scannedCode;
-                document.getElementById('code1').innerText = code1;
-                // 次の読み取りまで1.5秒待つ（連続で同じものを誤読するのを防ぐ）
-                setTimeout(() => { isProcessing = false; }, 1500);
-            } else if (!code2) {
-                // 2つ目のバーコードを登録
-                code2 = scannedCode;
-                document.getElementById('code2').innerText = code2;
-                
-                // 照合処理
-                checkCodes();
-            }
-        });
-
-        // 2つのコードの判定ロジック
-        function checkCodes() {
-            const msgElement = document.getElementById('judge-message');
-            
-            if (code1 === code2) {
-                // 一致した場合
-                msgElement.innerText = "ーーー 一致（OK） ーーー";
-                msgElement.className = "match";
-                soundPingpong.play().catch(e => console.log("音再生エラー:", e));
-            } else {
-                // 不一致の場合
-                msgElement.innerText = "【不一致（NG）】";
-                msgElement.className = "mismatch";
-                soundBoo.play().catch(e => console.log("音再生エラー:", e));
-            }
-        }
-
-        // データをクリアして最初からやり直す
-        function resetSystem() {
-            code1 = null;
-            code2 = null;
-            isProcessing = false;
-            document.getElementById('code1').innerText = "-";
-            document.getElementById('code2').innerText = "-";
-            const msgElement = document.getElementById('judge-message');
-            msgElement.innerText = "";
-            msgElement.className = "";
-        }
-    </script>
 </body>
 </html>
