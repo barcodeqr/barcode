@@ -9,6 +9,23 @@
     <style>
         body { font-family: sans-serif; text-align: center; margin: 20px; background: #f0f0f0; }
         
+        /* 💡 音声有効化ボタンのスタイル */
+        #start-audio-btn {
+            background: #ffcc00;
+            color: #333;
+            font-weight: bold;
+            border: 2px solid #ff9900;
+            padding: 15px 30px;
+            font-size: 18px;
+            margin-bottom: 15px;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+            100% { transform: scale(1); }
+        }
+
         /* カメラ表示エリアのスタイル設定 */
         #interactive.viewport { 
             width: 100%; 
@@ -22,22 +39,22 @@
         #interactive.viewport canvas.drawingBuffer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
         #interactive.viewport video { width: 100%; height: 100%; object-fit: cover; }
 
-        /* 💡 画面中央の緑枠（スキャンエリアガイド） */
+        /* 画面中央の緑枠（スキャンエリアガイド） */
         .scan-area-guide {
             position: absolute;
             top: 25%;
             left: 10%;
             width: 80%;
             height: 50%;
-            border: 3px solid #00ff66; /* 鮮やかな緑枠 */
+            border: 3px solid #00ff66;
             box-sizing: border-box;
-            box-shadow: 0 0 0 400px rgba(0, 0, 0, 0.4); /* 枠の外側を薄暗くして視認性を向上 */
+            box-shadow: 0 0 0 400px rgba(0, 0, 0, 0.4);
             border-radius: 8px;
             z-index: 10;
-            pointer-events: none; /* クリックやタップイベントを透過 */
+            pointer-events: none;
         }
 
-        /* 💡 スキャンエリア中央の横線（レーザー演出） */
+        /* スキャンエリア中央の横線（レーザー演出） */
         .scan-area-guide::after {
             content: '';
             position: absolute;
@@ -62,9 +79,13 @@
 <body>
 
     <h2>バーコード2点照合</h2>
+    
+    <!-- 💡 iPhone用の音声解放ボタンを追加 -->
+    <button id="start-audio-btn">最初にタップしてスキャン開始</button>
+    
     <p>緑の枠内にバーコードを合わせてください</p>
 
-    <!-- カメラ映像表示エリア（中に緑枠の要素を配置） -->
+    <!-- カメラ映像表示エリア -->
     <div id="interactive" class="viewport">
         <div class="scan-area-guide"></div>
     </div>
@@ -91,21 +112,38 @@
 
         // 誤読防止用のバッファ
         let detectionBuffer = [];
-        const REQUIRED_CONSISTENT_READS = 3; // 同じ値が3回連続で一致したら確定とする
+        const REQUIRED_CONSISTENT_READS = 3;
 
-        // 💡 お手持ちのmp3オーディオファイルの読み込み設定
-        // ※HTMLファイルと全く同じフォルダ（階層）にmp3ファイルを配置してください
+        // 各種mp3オーディオファイルの読み込み設定
         const audioScan = new Audio('scan.mp3');
         const audioMatch = new Audio('pingpong.mp3');
         const audioMismatch = new Audio('boo.mp3');
 
-        // 音声再生用の共通関数（iOS対策として都度シークをリセット）
+        // 💡 iPhone（iOS）の制限を突破するための処理
+        document.getElementById('start-audio-btn').addEventListener('click', function() {
+            // ボタンが押された瞬間に、すべての音声を一度「無音（消音）」で再生して即停止させる
+            // これによりブラウザ側で「ユーザーが意図して音を出した」とみなされ、以降の自動再生が許可されます
+            audioScan.play().then(() => { audioScan.pause(); audioScan.currentTime = 0; });
+            audioMatch.play().then(() => { audioMatch.pause(); audioMatch.currentTime = 0; });
+            audioMismatch.play().then(() => { audioMismatch.pause(); audioMismatch.currentTime = 0; });
+            
+            // ボタンを画面から非表示にする
+            this.style.display = 'none';
+        });
+
+        // 音声再生用の共通関数
         function playSound(audioObject) {
             try {
-                audioObject.currentTime = 0; // 再生位置を最初に戻す
-                audioObject.play();
+                audioObject.currentTime = 0;
+                // 再生処理がブラウザに拒否された場合のキャッチ処理
+                const playPromise = audioObject.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.error("再生がブロックされました。ボタンを再度押してください。", error);
+                    });
+                }
             } catch (e) {
-                console.error("音声の再生に失敗しました。", e);
+                console.error("音声の再生エラー:", e);
             }
         }
 
@@ -116,12 +154,11 @@
                 type: "LiveStream",
                 target: document.querySelector('#interactive'),
                 constraints: {
-                    width: { min: 640, ideal: 1280, max: 1920 }, // 解像度を高解像度（HD）に引き上げ
+                    width: { min: 640, ideal: 1280, max: 1920 },
                     height: { min: 480, ideal: 720, max: 1080 },
-                    facingMode: "environment", // 背面カメラを優先使用
-                    focusMode: "continuous"    // 連続オートフォーカス
+                    facingMode: "environment",
+                    focusMode: "continuous"
                 },
-                // 画面中央の緑枠と完全に一致するエリア（縦50%、横80%）のみを計算対象に制限
                 area: {
                     top: "25%",
                     bottom: "25%",
@@ -130,17 +167,17 @@
                 }
             },
             locator: {
-                patchSize: "medium", // バーコード探索の密度設定
-                halfSample: true     // 処理の軽量化と精度のバランス
+                patchSize: "medium",
+                halfSample: true
             },
             decoder: {
                 readers: ["ean_reader", "code_128_reader", "ean_8_reader", "code_39_reader"] 
             },
-            locate: false // 解析エリアを限定したため、自動全体探索をオフにして処理を高速化
+            locate: false
         }, function(err) {
             if (err) {
                 console.error(err);
-                alert("カメラの起動に失敗しました。カメラのアクセス許可を確認してください。");
+                alert("カメラの起動に失敗しました。");
                 return;
             }
             Quagga.start();
@@ -150,40 +187,33 @@
         Quagga.onDetected(function(data) {
             if (!isScanning) return;
 
-            // 信頼度の低い読み取りデータ（計算ノイズ）は即座に除外
             if (data.codeResult.error && data.codeResult.error > 0.1) return;
 
             const code = data.codeResult.code;
             if (!code) return;
 
-            // 誤読対策：複数回連続で同じ値が読めた場合のみ「正しい値」として採用
             detectionBuffer.push(code);
             if (detectionBuffer.length < REQUIRED_CONSISTENT_READS) return;
 
-            // バッファに溜まったデータがすべて一致しているか検証
             const allMatch = detectionBuffer.every(val => val === code);
             if (!allMatch) {
-                detectionBuffer.shift(); // 不一致なら先頭を古いものとして1つ削除し、次の検出を待つ
+                detectionBuffer.shift();
                 return;
             }
 
-            // 確定した値を代入
-            const confirmedCode = detectionBuffer[0];
-            detectionBuffer = []; // バッファをリセット
+            const confirmedCode = detectionBuffer;
+            detectionBuffer = [];
 
             if (!code1) {
-                // 1つ目のコードを登録
                 code1 = confirmedCode;
                 document.getElementById('code1').innerText = confirmedCode;
                 
-                // 💡 1つ目の読み取り音（scan.mp3）を再生
+                // 1つ目の読み取り音
                 playSound(audioScan);
 
-                // 同じバーコードを連続で読み込まないよう、2秒間シールド期間を設ける
                 isScanning = false;
                 setTimeout(() => { isScanning = true; }, 2000); 
             } else if (!code2) {
-                // 2つ目のコードを登録
                 code2 = confirmedCode;
                 document.getElementById('code2').innerText = confirmedCode;
                 
@@ -198,12 +228,12 @@
             if (code1 === code2) {
                 messageEl.innerText = "一致（OK）";
                 messageEl.className = "match";
-                // 💡 一致した時の音（pingpong.mp3）を再生
+                // 一致音
                 playSound(audioMatch);
             } else {
                 messageEl.innerText = "不一致（NG）";
                 messageEl.className = "mismatch";
-                // 💡 不一致の時の音（boo.mp3）を再生
+                // 不一致音
                 playSound(audioMismatch);
             }
         }
