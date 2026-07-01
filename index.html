@@ -57,6 +57,32 @@
 
     const soundPingpong = document.getElementById('sound-pingpong');
     const soundBoo = document.getElementById('sound-boo');
+    // 🔥【追加】iOS Safariの音声制限を解除する関数
+    function unlockAudio() {
+        // 空の音を再生して即停止することで、ブラウザの音制限を解除する
+        soundPingpong.play().then(() => {
+            soundPingpong.pause();
+            soundPingpong.currentTime = 0;
+        }).catch(e => console.log("アンロック失敗:", e));
+
+        soundBoo.play().then(() => {
+            soundBoo.pause();
+            soundBoo.currentTime = 0;
+        }).catch(e => console.log("アンロック失敗:", e));
+
+        // 一度制限を解除したら、このイベントリスナーは削除する
+        document.removeEventListener('click', unlockAudio);
+        document.removeEventListener('touchstart', unlockAudio);
+        
+        // ユーザーに解除されたことを伝える（任意。消してもOKです）
+        const msgElement = document.getElementById('judge-message');
+        msgElement.innerText = "音声準備完了。バーコードを読んでください。";
+        setTimeout(() => { if(msgElement.innerText.includes("音声準備")) msgElement.innerText = ""; }, 2000);
+    }
+
+    // 🔥【追加】画面をタップ、またはクリックした瞬間に制限解除を実行
+    document.addEventListener('click', unlockAudio);
+    document.addEventListener('touchstart', unlockAudio);
 
     // QuaggaJS 初期化
     Quagga.init({
