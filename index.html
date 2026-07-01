@@ -132,11 +132,8 @@
         function playSound(audioObject, callback) {
             try {
                 audioObject.currentTime = 0;
-                
-                // 💡 再生終了時の処理が2重に登録されるのを防ぐため、一度クリアする
                 audioObject.onended = null;
                 
-                // 💡 もし再生終了後に実行したい処理（コールバック）があれば登録する
                 if (callback) {
                     audioObject.onended = callback;
                 }
@@ -145,7 +142,7 @@
                 if (playPromise !== undefined) {
                     playPromise.catch(error => {
                         console.error("再生がブロックされました。", error);
-                        if (callback) callback(); // 再生失敗時も処理が止まらないよう次へ進める
+                        if (callback) callback();
                     });
                 }
             } catch (e) {
@@ -213,7 +210,8 @@
                 return;
             }
 
-            const confirmedCode = detectionBuffer;
+            // 💡 修正：配列オブジェクトではなく、配列の1つ目（純粋な文字列データ）を取り出す
+            const confirmedCode = detectionBuffer[0];
             detectionBuffer = [];
             lengthHistory = []; 
 
@@ -232,7 +230,7 @@
                 
                 isScanning = false;
                 
-                // 💡 改善：2つ目のスキャン音が「完全に鳴り終わった後」に判定処理を呼び出します
+                // 2つ目のスキャン音が完全に鳴り終わった後に判定
                 playSound(audioScan, function() {
                     checkMatch();
                 });
