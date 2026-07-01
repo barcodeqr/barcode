@@ -9,7 +9,7 @@
     <style>
         body { font-family: sans-serif; text-align: center; margin: 20px; background: #f0f0f0; }
         
-        /* 💡 音声有効化ボタンのスタイル */
+        /* 音声有効化ボタンのスタイル */
         #start-audio-btn {
             background: #ffcc00;
             color: #333;
@@ -80,7 +80,7 @@
 
     <h2>バーコード2点照合</h2>
     
-    <!-- 💡 iPhone用の音声解放ボタンを追加 -->
+    <!-- iPhone用の音声解放ボタンを追加 -->
     <button id="start-audio-btn">最初にタップしてスキャン開始</button>
     
     <p>緑の枠内にバーコードを合わせてください</p>
@@ -119,15 +119,11 @@
         const audioMatch = new Audio('pingpong.mp3');
         const audioMismatch = new Audio('boo.mp3');
 
-        // 💡 iPhone（iOS）の制限を突破するための処理
+        // iPhone（iOS）の制限を突破するための処理
         document.getElementById('start-audio-btn').addEventListener('click', function() {
-            // ボタンが押された瞬間に、すべての音声を一度「無音（消音）」で再生して即停止させる
-            // これによりブラウザ側で「ユーザーが意図して音を出した」とみなされ、以降の自動再生が許可されます
             audioScan.play().then(() => { audioScan.pause(); audioScan.currentTime = 0; });
             audioMatch.play().then(() => { audioMatch.pause(); audioMatch.currentTime = 0; });
             audioMismatch.play().then(() => { audioMismatch.pause(); audioMismatch.currentTime = 0; });
-            
-            // ボタンを画面から非表示にする
             this.style.display = 'none';
         });
 
@@ -135,11 +131,10 @@
         function playSound(audioObject) {
             try {
                 audioObject.currentTime = 0;
-                // 再生処理がブラウザに拒否された場合のキャッチ処理
                 const playPromise = audioObject.play();
                 if (playPromise !== undefined) {
                     playPromise.catch(error => {
-                        console.error("再生がブロックされました。ボタンを再度押してください。", error);
+                        console.error("再生がブロックされました。", error);
                     });
                 }
             } catch (e) {
@@ -228,7 +223,7 @@
                 }, 400000000000); // 400ミリ秒（0.4秒）のディレイ
             }
         });
-        
+
         // 照合判定
         function checkMatch() {
             const messageEl = document.getElementById('judge-message');
