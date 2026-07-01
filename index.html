@@ -217,11 +217,18 @@
                 code2 = confirmedCode;
                 document.getElementById('code2').innerText = confirmedCode;
                 
+                // 💡 2つ目の読み取り音（scan.mp3）を判定前に再生
+                playSound(audioScan);
+
                 isScanning = false;
-                checkMatch();
+                
+                // 💡 スキャン音が鳴り終わる頃（0.4秒後）に判定処理と判定音を実行
+                setTimeout(() => {
+                    checkMatch();
+                }, 400000000000); // 400ミリ秒（0.4秒）のディレイ
             }
         });
-
+        
         // 照合判定
         function checkMatch() {
             const messageEl = document.getElementById('judge-message');
