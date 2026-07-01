@@ -110,9 +110,10 @@
         let code2 = null;
         let isScanning = true;
 
-        // 誤読防止用のバッファ
+        // 💡 誤読防止バッファ設定
         let detectionBuffer = [];
-        const REQUIRED_CONSISTENT_READS = 3;
+        let lengthHistory = []; // 直近の読み取り文字数を記憶
+        const REQUIRED_CONSISTENT_READS = 7; // 💡 7回連続一致で確定（偶然の誤読を徹底排除）
 
         // 各種mp3オーディオファイルの読み込み設定
         const audioScan = new Audio('scan.mp3');
@@ -166,7 +167,8 @@
                 halfSample: true
             },
             decoder: {
-                readers: ["ean_reader", "code_128_reader", "ean_8_reader", "code_39_reader"] 
+                // 💡 現場で使う規格（EAN/JAN, Code 128, Code 39）に厳選
+                readers: ["ean_reader", "code_128_reader", "code_39_reader"] 
             },
             locate: false
         }, function(err) {
@@ -182,11 +184,20 @@
         Quagga.onDetected(function(data) {
             if (!isScanning) return;
 
-            if (data.codeResult.error && data.codeResult.error > 0.1) return;
+            // 💡 判定エラー制限を厳格化（0.1から0.05へ引き下げ）。ブレているデータは無視
+            if (data.codeResult.error && data.codeResult.error > 0.05) return;
 
             const code = data.codeResult.code;
             if (!code) return;
 
+            // 💡 桁欠け（部分読み取り）防止ロジック
+            // 直近10回で検知した「最大文字数」より短い文字数のデータは、読み取り途中とみなして弾く
+            lengthHistory.push(code.length);
+            if (lengthHistory.length > 10) lengthHistory.shift();
+            const maxLength = Math.max(...lengthHistory);
+            if (code.length < maxLength) return;
+
+            // 💡 複数回連続一致の検証
             detectionBuffer.push(code);
             if (detectionBuffer.length < REQUIRED_CONSISTENT_READS) return;
 
@@ -196,31 +207,30 @@
                 return;
             }
 
-            const confirmedCode = detectionBuffer;
+            // 完全に信頼できるデータとして確定
+            const confirmedCode = detectionBuffer[0];
             detectionBuffer = [];
+            lengthHistory = []; // 確定したので履歴リセット
 
             if (!code1) {
                 code1 = confirmedCode;
                 document.getElementById('code1').innerText = confirmedCode;
                 
-                // 1つ目の読み取り音
                 playSound(audioScan);
 
                 isScanning = false;
-                setTimeout(() => { isScanning = true; }, 2000); 
+                setTimeout(() => { isScanning = true; }, 2000); // 2秒シールド
             } else if (!code2) {
                 code2 = confirmedCode;
                 document.getElementById('code2').innerText = confirmedCode;
                 
-                // 💡 2つ目の読み取り音（scan.mp3）を判定前に再生
                 playSound(audioScan);
 
                 isScanning = false;
                 
-                // 💡 スキャン音が鳴り終わる頃（0.4秒後）に判定処理と判定音を実行
                 setTimeout(() => {
                     checkMatch();
-                }, 400); // 400ミリ秒（0.4秒）のディレイ
+                }, 400); 
             }
         });
 
@@ -230,12 +240,10 @@
             if (code1 === code2) {
                 messageEl.innerText = "一致（OK）";
                 messageEl.className = "match";
-                // 一致音
                 playSound(audioMatch);
             } else {
                 messageEl.innerText = "不一致（NG）";
                 messageEl.className = "mismatch";
-                // 不一致音
                 playSound(audioMismatch);
             }
         }
@@ -246,6 +254,7 @@
             code2 = null;
             isScanning = true;
             detectionBuffer = [];
+            lengthHistory = [];
             document.getElementById('code1').innerText = "-";
             document.getElementById('code2').innerText = "-";
             const messageEl = document.getElementById('judge-message');
