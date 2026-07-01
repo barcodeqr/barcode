@@ -80,7 +80,7 @@
 
     <h2>バーコード2点照合</h2>
     
-    <!-- iPhone用の音声解放ボタンを追加 -->
+    <!-- iPhone用の音声解放ボタン -->
     <button id="start-audio-btn">最初にタップしてスキャン開始</button>
     
     <p>緑の枠内にバーコードを合わせてください</p>
@@ -115,49 +115,63 @@
         let lengthHistory = []; 
         const REQUIRED_CONSISTENT_READS = 7; 
 
-        // 💡 Web Audio API（超軽量音声システム）用の変数
+        // 💡 制限突破用のWeb Audio APIのコンテキスト定義
         let audioCtx = null;
         let audioBuffers = { scan: null, match: null, mismatch: null };
 
-        // 💡 起動時にmp3ファイルを前もって最速メモリにダウンロード・デコードする関数
+        // 💡 ページ読み込み時にmp3データをあらかじめバックグラウンドで解析（ロード）しておく
         async function loadSound(name, url) {
             try {
                 const response = await fetch(url);
                 const arrayBuffer = await response.arrayBuffer();
-                audioBuffers[name] = await audioCtx.decodeAudioData(arrayBuffer);
+                // この時点ではctxがないので、後でデコードできるように一旦保存するか、ctx作成後にまとめて処理
+                return arrayBuffer;
             } catch (e) {
-                console.error(name + " の読み込みに失敗しました", e);
+                console.error(name + "の読み込みに失敗しました", e);
             }
         }
 
-        // 💡 iPhone（iOS）の制限を突破し、メモリを最速起動させる処理
+        // 事前ダウンロードの準備
+        let rawBuffers = {};
+        (async () => {
+            rawBuffers.scan = await loadSound('scan', 'scan.mp3');
+            rawBuffers.match = await loadSound('pingpong', 'pingpong.mp3');
+            rawBuffers.mismatch = await loadSound('boo', 'boo.mp3');
+        })();
+
+        // iPhone（iOS）の制限を突破するための処理（ボタンクリック時）
         document.getElementById('start-audio-btn').addEventListener('click', async function() {
-            // 音声コンテキストの初期化
+            // オーディオコンテキストの作成（ユーザーのアクション内で行う必要あり）
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             
-            this.innerText = "音声読み込み中...";
-            this.style.background = "#ccc";
-            
-            // 事前にmp3データをメモリに完全に吸い上げる
-            await loadSound('scan', 'scan.mp3');
-            await loadSound('match', 'pingpong.mp3');
-            await loadSound('mismatch', 'boo.mp3');
-            
-            // ボタンを消し去る
+            // あらかじめダウンロードしていたデータをデコードして即時再生可能な状態にする
+            try {
+                if (rawBuffers.scan) audioBuffers.scan = await audioCtx.decodeAudioData(rawBuffers.scan.slice(0));
+                if (rawBuffers.match) audioBuffers.match = await audioCtx.decodeAudioData(rawBuffers.match.slice(0));
+                if (rawBuffers.mismatch) audioBuffers.mismatch = await audioCtx.decodeAudioData(rawBuffers.mismatch.slice(0));
+            } catch (e) {
+                console.error("オーディオデータのデコードに失敗しました", e);
+            }
+
+            // iOSのサイレントモードロックを解除するためのダミー再生
+            const dummySource = audioCtx.createBufferSource();
+            dummySource.connect(audioCtx.destination);
+            dummySource.start(0);
+
             this.style.display = 'none';
         });
 
-        // 💡 メモリから直接音を鳴らす超高速関数（何万回連続で呼んでも絶対にパンクしません）
-        function playBuffer(buffer) {
+        // 💡 超高速・軽量な音声再生関数（毎回データを使い捨てるため、連続使用でも絶対詰まりません）
+        function playBufferSound(buffer) {
             if (!audioCtx || !buffer) return;
-            // iOSがサスペンド（スリープ）状態になっていたら強制叩き起こし
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
+            try {
+                const source = audioCtx.createBufferSource();
+                source.buffer = buffer;
+                source.connect(audioCtx.destination);
+                source.start(0);
+            } catch (e) {
+                console.error("再生エラー:", e);
             }
-            const source = audioCtx.createBufferSource();
-            source.buffer = buffer;
-            source.connect(audioCtx.destination);
-            source.start(0);
         }
 
         // Quaggaの初期設定
@@ -219,7 +233,7 @@
                 return;
             }
 
-            const confirmedCode = detectionBuffer;
+            const confirmedCode = detectionBuffer[0];
             detectionBuffer = [];
             lengthHistory = []; 
 
@@ -227,8 +241,8 @@
                 code1 = confirmedCode;
                 document.getElementById('code1').innerText = confirmedCode;
                 
-                // 1つ目のスキャン音を最速再生
-                playBuffer(audioBuffers.scan);
+                // 1つ目のスキャン音（即時再生）
+                playBufferSound(audioBuffers.scan);
 
                 isScanning = false;
                 setTimeout(() => { isScanning = true; }, 2000); 
@@ -238,9 +252,13 @@
                 
                 isScanning = false;
                 
-                // 💡 最速で2つ目のスキャン音と判定結果を同時に発火（ズレが発生しなくなります）
-                playBuffer(audioBuffers.scan);
-                checkMatch();
+                // 💡 2つ目のスキャン音を即時再生
+                playBufferSound(audioBuffers.scan);
+
+                // 💡 改善：タイマーや終了イベントの同期を一切排除し、時間差で安全に判定へ繋ぐ
+                setTimeout(() => {
+                    checkMatch();
+                }, 350); // スキャン音が始まって0.35秒後に判定音を重ねるように再生
             }
         });
 
@@ -250,15 +268,15 @@
             if (code1 === code2) {
                 messageEl.innerText = "一致（OK）";
                 messageEl.className = "match";
-                playBuffer(audioBuffers.match); // 一致音
+                playBufferSound(audioBuffers.match); // 一致音を即時再生
             } else {
                 messageEl.innerText = "不一致（NG）";
                 messageEl.className = "mismatch";
-                playBuffer(audioBuffers.mismatch); // 不一致音
+                playBufferSound(audioBuffers.mismatch); // 不一致音を即時再生
             }
         }
 
-        // リセット処理
+　　　　// リセット処理
         document.getElementById('reset-btn').addEventListener('click', function() {
             code1 = null;
             code2 = null;
@@ -270,6 +288,7 @@
             const messageEl = document.getElementById('judge-message');
             messageEl.innerText = "確認中...";
             messageEl.className = "";
+            audioScan2.onended = null; // イベントクリア
         });
     </script>
 </body>
