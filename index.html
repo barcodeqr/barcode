@@ -80,7 +80,7 @@
 
     <h2>バーコード2点照合</h2>
     
-    <!-- iPhone/iPad音声解放用のボタン -->
+    <!-- iPhone用の音声解放ボタンを追加 -->
     <button id="start-audio-btn">最初にタップしてスキャン開始</button>
     
     <p>緑の枠内にバーコードを合わせてください</p>
@@ -115,75 +115,33 @@
         let lengthHistory = []; 
         const REQUIRED_CONSISTENT_READS = 7; 
 
-        // オーディオコンテキスト
-        let audioCtx = null;
+        // 💡 対策：1つ目と2つ目のスキャン音プレイヤーを完全に別々にして衝突を回避
+        const audioScan1 = new Audio('scan.mp3');
+        const audioScan2 = new Audio('scan.mp3');
+        const audioMatch = new Audio('pingpong.mp3');
+        const audioMismatch = new Audio('boo.mp3');
 
-        // ボタン押下時にオーディオを起動
+        // iPhone（iOS）の制限を突破するための処理
         document.getElementById('start-audio-btn').addEventListener('click', function() {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            audioScan1.play().then(() => { audioScan1.pause(); audioScan1.currentTime = 0; });
+            audioScan2.play().then(() => { audioScan2.pause(); audioScan2.currentTime = 0; });
+            audioMatch.play().then(() => { audioMatch.pause(); audioMatch.currentTime = 0; });
+            audioMismatch.play().then(() => { audioMismatch.pause(); audioMismatch.currentTime = 0; });
             this.style.display = 'none';
         });
 
-        // 💡 外部ファイルを使わず、その場で電子音を合成して鳴らす関数（連続再生でも絶対にバグりません）
-        function playTone(type) {
-            if (!audioCtx) return;
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-
-            const now = audioCtx.currentTime;
-
-            if (type === 'scan') {
-                // スキャン音：「ピッ」という短く高めの電子音
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(2000, now); // 2000Hzの高音
-                gain.gain.setValueAtTime(0.1, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08); // 0.08秒で消音
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start(now);
-                osc.stop(now + 0.08);
-            } 
-            else if (type === 'match') {
-                // 一致音：「ピンポーン」を表現する2音連続の和音
-                // 1音目：「ピン」
-                const osc1 = audioCtx.createOscillator();
-                const gain1 = audioCtx.createGain();
-                osc1.type = 'triangle'; // 少し柔らかい音色
-                osc1.frequency.setValueAtTime(1200, now); 
-                gain1.gain.setValueAtTime(0.1, now);
-                gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-                osc1.connect(gain1);
-                gain1.connect(audioCtx.destination);
-                osc1.start(now);
-                osc1.stop(now + 0.3);
-
-                // 2音目：「ポーン」（0.15秒後に少し低い音を重ねる）
-                const osc2 = audioCtx.createOscillator();
-                const gain2 = audioCtx.createGain();
-                osc2.type = 'triangle';
-                osc2.frequency.setValueAtTime(950, now + 0.15); 
-                gain2.gain.setValueAtTime(0.1, now + 0.15);
-                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-                osc2.connect(gain2);
-                gain2.connect(audioCtx.destination);
-                osc2.start(now + 0.15);
-                osc2.stop(now + 0.6);
-            } 
-            else if (type === 'mismatch') {
-                // 不一致音：「ブーー」という低く濁った音
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.type = 'sawtooth'; // 濁ったブザー音の波形
-                osc.frequency.setValueAtTime(180, now); // 低音
-                gain.gain.setValueAtTime(0.1, now);
-                gain.gain.linearRampToValueAtTime(0.001, now + 0.5); // 0.5秒間鳴らす
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start(now);
-                osc.stop(now + 0.5);
+        // 音声再生用の共通関数
+        function playSound(audioObject) {
+            try {
+                audioObject.currentTime = 0;
+                const playPromise = audioObject.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.error("再生がブロックされました。", error);
+                    });
+                }
+            } catch (e) {
+                console.error("音声の再生エラー:", e);
             }
         }
 
@@ -246,7 +204,6 @@
                 return;
             }
 
-            // 💡 修正：配列から純粋な「1つ目の文字列」のみを確実に抽出
             const confirmedCode = detectionBuffer[0];
             detectionBuffer = [];
             lengthHistory = []; 
@@ -256,7 +213,7 @@
                 document.getElementById('code1').innerText = confirmedCode;
                 
                 // 1つ目のスキャン音
-                playTone('scan');
+                playSound(audioScan1);
 
                 isScanning = false;
                 setTimeout(() => { isScanning = true; }, 2000); 
@@ -266,11 +223,22 @@
                 
                 isScanning = false;
                 
-                // 2つ目のスキャン音
-                playTone('scan');
+                // 💡 2つ目の独立したプレイヤーでスキャン音を再生
+                playSound(audioScan2);
 
-                // 2つ目のスキャン音が鳴るのと同時に即座に判定を実行（ズレが起きません）
-                checkMatch();
+                // 💡 対策：音声終了イベントに依存せず、確実に0.45秒後に判定（ピンポン）を呼び出す2重シールド構造
+                let hasJudged = false;
+                function triggerCheck() {
+                    if (hasJudged) return;
+                    hasJudged = true;
+                    checkMatch();
+                }
+
+                // スキャン音の再生が終わったら実行（正常系）
+                audioScan2.onended = triggerCheck;
+
+                // iOSがイベントを無視した場合の強制バックアップ（450ミリ秒後に実行）
+                setTimeout(triggerCheck, 450);
             }
         });
 
@@ -280,11 +248,11 @@
             if (code1 === code2) {
                 messageEl.innerText = "一致（OK）";
                 messageEl.className = "match";
-                playBuffer(audioBuffers.match); // 一致音
+                playSound(audioMatch);
             } else {
                 messageEl.innerText = "不一致（NG）";
                 messageEl.className = "mismatch";
-                playBuffer(audioBuffers.mismatch); // 不一致音
+                playSound(audioMismatch);
             }
         }
 
@@ -300,6 +268,7 @@
             const messageEl = document.getElementById('judge-message');
             messageEl.innerText = "確認中...";
             messageEl.className = "";
+            audioScan2.onended = null; // イベントクリア
         });
     </script>
 </body>
