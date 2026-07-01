@@ -115,62 +115,79 @@
         let lengthHistory = []; 
         const REQUIRED_CONSISTENT_READS = 7; 
 
-        // 💡 制限突破用のWeb Audio APIのコンテキスト定義
+        // Web Audio API 用の変数
         let audioCtx = null;
-        let audioBuffers = { scan: null, match: null, mismatch: null };
 
-        // 💡 ページ読み込み時にmp3データをあらかじめバックグラウンドで解析（ロード）しておく
-        async function loadSound(name, url) {
-            try {
-                const response = await fetch(url);
-                const arrayBuffer = await response.arrayBuffer();
-                // この時点ではctxがないので、後でデコードできるように一旦保存するか、ctx作成後にまとめて処理
-                return arrayBuffer;
-            } catch (e) {
-                console.error(name + "の読み込みに失敗しました", e);
-            }
-        }
-
-        // 事前ダウンロードの準備
-        let rawBuffers = {};
-        (async () => {
-            rawBuffers.scan = await loadSound('scan', 'scan.mp3');
-            rawBuffers.match = await loadSound('pingpong', 'pingpong.mp3');
-            rawBuffers.mismatch = await loadSound('boo', 'boo.mp3');
-        })();
-
-        // iPhone（iOS）の制限を突破するための処理（ボタンクリック時）
-        document.getElementById('start-audio-btn').addEventListener('click', async function() {
-            // オーディオコンテキストの作成（ユーザーのアクション内で行う必要あり）
+        // iPhone（iOS）の制限を突破し、音声システムを起動する処理
+        document.getElementById('start-audio-btn').addEventListener('click', function() {
+            // 音声コンテキストの初期化
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             
-            // あらかじめダウンロードしていたデータをデコードして即時再生可能な状態にする
-            try {
-                if (rawBuffers.scan) audioBuffers.scan = await audioCtx.decodeAudioData(rawBuffers.scan.slice(0));
-                if (rawBuffers.match) audioBuffers.match = await audioCtx.decodeAudioData(rawBuffers.match.slice(0));
-                if (rawBuffers.mismatch) audioBuffers.mismatch = await audioCtx.decodeAudioData(rawBuffers.mismatch.slice(0));
-            } catch (e) {
-                console.error("オーディオデータのデコードに失敗しました", e);
-            }
+            // iPhone用のダミー再生（空の音を鳴らしてロック解除）
+            const buffer = audioCtx.createBuffer(1, 1, 22050);
+            const node = audioCtx.createBufferSource();
+            node.buffer = buffer;
+            node.connect(audioCtx.destination);
+            node.start(0);
 
-            // iOSのサイレントモードロックを解除するためのダミー再生
-            const dummySource = audioCtx.createBufferSource();
-            dummySource.connect(audioCtx.destination);
-            dummySource.start(0);
-
+            // ボタンを非表示にする
             this.style.display = 'none';
         });
 
-        // 💡 超高速・軽量な音声再生関数（毎回データを使い捨てるため、連続使用でも絶対詰まりません）
-        function playBufferSound(buffer) {
-            if (!audioCtx || !buffer) return;
-            try {
-                const source = audioCtx.createBufferSource();
-                source.buffer = buffer;
-                source.connect(audioCtx.destination);
-                source.start(0);
-            } catch (e) {
-                console.error("再生エラー:", e);
+        // 💡 外部mp3ファイルを使わず、プログラムで直接きれいな電子音を合成して再生する関数
+        // これによりiPhoneのファイル読み込みエラーを200%回避します
+        function playTone(type) {
+            if (!audioCtx) return;
+            
+            // スリープ状態からの復帰対策
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'scan') {
+                // スキャン音：「ピッ」という短く高い音
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1800, now); // 高めの音
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08); // 0.08秒で消える
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.08);
+
+            } else if (type === 'match') {
+                // 一致音：「ピピーン」という明るい和音
+                [1200, 1500, 1800].forEach((freq, index) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + (index * 0.05));
+                    gain.gain.setValueAtTime(0.08, now + (index * 0.05));
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now + (index * 0.05));
+                    osc.stop(now + 0.4);
+                });
+
+            } else if (type === 'mismatch') {
+                // 不一致音：「ブブー」という低い濁った音
+                [180, 183].forEach(freq => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth'; // 濁った音色
+                    osc.frequency.setValueAtTime(freq, now);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.5);
+                });
             }
         }
 
@@ -233,7 +250,7 @@
                 return;
             }
 
-            const confirmedCode = detectionBuffer[0];
+            const confirmedCode = detectionBuffer;
             detectionBuffer = [];
             lengthHistory = []; 
 
@@ -241,8 +258,8 @@
                 code1 = confirmedCode;
                 document.getElementById('code1').innerText = confirmedCode;
                 
-                // 1つ目のスキャン音（即時再生）
-                playBufferSound(audioBuffers.scan);
+                // 1つ目のスキャン音
+                playTone('scan');
 
                 isScanning = false;
                 setTimeout(() => { isScanning = true; }, 2000); 
@@ -252,13 +269,9 @@
                 
                 isScanning = false;
                 
-                // 💡 2つ目のスキャン音を即時再生
-                playBufferSound(audioBuffers.scan);
-
-                // 💡 改善：タイマーや終了イベントの同期を一切排除し、時間差で安全に判定へ繋ぐ
-                setTimeout(() => {
-                    checkMatch();
-                }, 350); // スキャン音が始まって0.35秒後に判定音を重ねるように再生
+                // 2つ目のスキャン音を再生し、即座に判定へ
+                playTone('scan');
+                checkMatch();
             }
         });
 
@@ -268,15 +281,15 @@
             if (code1 === code2) {
                 messageEl.innerText = "一致（OK）";
                 messageEl.className = "match";
-                playBufferSound(audioBuffers.match); // 一致音を即時再生
+                playBuffer(audioBuffers.match); // 一致音
             } else {
                 messageEl.innerText = "不一致（NG）";
                 messageEl.className = "mismatch";
-                playBufferSound(audioBuffers.mismatch); // 不一致音を即時再生
+                playBuffer(audioBuffers.mismatch); // 不一致音
             }
         }
 
-　　　　// リセット処理
+        // リセット処理
         document.getElementById('reset-btn').addEventListener('click', function() {
             code1 = null;
             code2 = null;
@@ -288,7 +301,6 @@
             const messageEl = document.getElementById('judge-message');
             messageEl.innerText = "確認中...";
             messageEl.className = "";
-            audioScan2.onended = null; // イベントクリア
         });
     </script>
 </body>
