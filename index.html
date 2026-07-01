@@ -50,119 +50,106 @@
     <audio id="sound-boo" src="boo.mp3" preload="auto"></audio>
 
 <script>
-    let code1 = null;
-    let code2 = null;
-    let isProcessing = false;
+let code1 = null;
+let code2 = null;
+let isScanning = true;
 
-    const soundScan = document.getElementById('sound-scan');
-    const soundPingpong = document.getElementById('sound-pingpong');
-    const soundBoo = document.getElementById('sound-boo');
+// 誤読防止用のバッファ
+let detectionBuffer = [];
+const REQUIRED_CONSISTENT_READS = 3; // 同じ値が何回連続で検出されたら確定とするか
 
-    // iOS Safariの音声自動再生制限を解除する関数
-    function unlockAudio() {
-        const audios = [soundScan, soundPingpong, soundBoo];
-        audios.forEach(audio => {
-            audio.play().then(() => {
-                audio.pause();
-                audio.currentTime = 0;
-            }).catch(e => console.log("アンロック失敗:", e));
-        });
-
-        document.removeEventListener('click', unlockAudio);
-        document.removeEventListener('touchstart', unlockAudio);
-        
-        const msgElement = document.getElementById('judge-message');
-        msgElement.innerText = "音声準備完了。1つ目を読み取ってください。";
-        setTimeout(() => { if(msgElement.innerText.includes("音声準備")) msgElement.innerText = ""; }, 2000);
-    }
-
-    document.addEventListener('click', unlockAudio);
-    document.addEventListener('touchstart', unlockAudio);
-
-    // QuaggaJS 初期化
-    Quagga.init({
-        inputStream: {
-            name: "Live",
-            type: "LiveStream",
-            target: document.querySelector('#interactive'),
-            constraints: {
-                facingMode: "environment"
-            },
-            area: {
-                top: "40%",
-                right: "10%",
-                left: "10%",
-                bottom: "40%"
-            }
+Quagga.init({
+    inputStream: {
+        name: "Live",
+        type: "LiveStream",
+        target: document.querySelector('#interactive'),
+        constraints: {
+            width: { min: 640, ideal: 1280, max: 1920 }, // 解像度を上げて高密度バーコードに対応
+            height: { min: 480, ideal: 720, max: 1080 },
+            facingMode: "environment",
+            focusMode: "continuous" // オートフォーカスを有効化（対応端末のみ）
         },
-        locator: {
-            patchSize: "medium",
-            halfSample: true
-        },
-        locate: true,
-        decoder: {
-            readers: ["ean_reader"]
-        }
-    }, function(err) {
-        if (err) {
-            console.error(err);
-            alert("カメラ起動に失敗しました。HTTPS環境か確認してください。");
-            return;
-        }
-        Quagga.start();
-    });
+    },
+    locator: {
+        patchSize: "medium", // バーコードを探す範囲のサイズ (small, medium, large)
+        halfSample: true     // 処理速度と精度のバランスを取る
+    },
+    decoder: {
+        // 💡 読み取り対象の規格を絞るほど精度が劇的に上がります（例: JANコードなら "ean_reader" のみ）
+        readers: ["ean_reader", "code_128_reader"], 
+        multiple: false // 1枚の画像から複数のバーコードを読まない
+    },
+    locate: true // バーコードの位置探索を有効化
+}, function(err) {
+    if (err) {
+        console.error(err);
+        alert("カメラの起動に失敗しました。");
+        return;
+    }
+    Quagga.start();
+});
 
-    // 読み取り時の処理
-    Quagga.onDetected(function(data) {
-        if (isProcessing) return;
+// バーコード検出時の処理
+Quagga.onDetected(function(data) {
+    if (!isScanning) return;
 
-        const scannedCode = data.codeResult.code;
-        if (!scannedCode) return;
+    // 信頼度の低いデータはスキップ
+    if (data.codeResult.error && data.codeResult.error > 0.1) return;
 
-        const confidence = data.codeResult.start || 0;
-        if (confidence < 0.3) return;
+    const code = data.codeResult.code;
+    if (!code) return;
 
-        isProcessing = true;
+    // 💡 複数回連続で同じ値が読めた場合のみ「正しいデータ」として採用（誤読対策）
+    detectionBuffer.push(code);
+    if (detectionBuffer.length < REQUIRED_CONSISTENT_READS) return;
 
-        if (!code1) {
-            code1 = scannedCode;
-            document.getElementById('code1').innerText = code1;
-            soundScan.play().catch(e => console.log("音再生エラー:", e));
-            setTimeout(() => { isProcessing = false; }, 1500);
-
-        } else if (!code2) {
-            code2 = scannedCode;
-            document.getElementById('code2').innerText = code2;
-            checkCodes();
-        }
-    });
-
-    // 判定処理
-    function checkCodes() {
-        const msgElement = document.getElementById('judge-message');
-
-        if (code1 === code2) {
-            msgElement.innerText = "ーーー 一致（OK） ーーー";
-            msgElement.className = "match";
-            soundPingpong.play().catch(e => console.log("音再生エラー:", e));
-        } else {
-            msgElement.innerText = "【不一致（NG）】";
-            msgElement.className = "mismatch";
-            soundBoo.play().catch(e => console.log("音再生エラー:", e));
-        }
+    // バッファ内の値がすべて一致しているか確認
+    const allMatch = detectionBuffer.every(val => val === detectionBuffer[0]);
+    if (!allMatch) {
+        detectionBuffer.shift(); // 先頭を削除して次を待つ
+        return;
     }
 
-    // リセット
-    function resetSystem() {
-        code1 = null;
-        code2 = null;
-        isProcessing = false;
-        document.getElementById('code1').innerText = "-";
-        document.getElementById('code2').innerText = "-";
-        const msgElement = document.getElementById('judge-message');
-        msgElement.innerText = "";
-        msgElement.className = "";
+    // 確定したコードを処理
+    const confirmedCode = detectionBuffer[0];
+    detectionBuffer = []; // バッファをクリア
+
+    if (!code1) {
+        code1 = confirmedCode;
+        document.getElementById('code1').innerText = confirmedCode;
+        isScanning = false;
+        setTimeout(() => { isScanning = true; }, 2000); // 2秒間シールドして重複読みを防ぐ
+    } else if (!code2) {
+        code2 = confirmedCode;
+        document.getElementById('code2').innerText = confirmedCode;
+        isScanning = false;
+        checkMatch();
     }
+});
+
+// 照合判定
+function checkMatch() {
+    const messageEl = document.getElementById('judge-message');
+    if (code1 === code2) {
+        messageEl.innerText = "一致（OK）";
+        messageEl.className = "match";
+    } else {
+        messageEl.innerText = "不一致（NG）";
+        messageEl.className = "mismatch";
+    }
+}
+
+// リセット処理
+document.getElementById('reset-btn').addEventListener('click', function() {
+    code1 = null;
+    code2 = null;
+    isScanning = true;
+    detectionBuffer = [];
+    document.getElementById('code1').innerText = "-";
+    document.getElementById('code2').innerText = "-";
+    const messageEl = document.getElementById('judge-message');
+    messageEl.innerText = "確認中...";
+    messageEl.className = "";
 </script>
 
 </body>
