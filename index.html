@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>バーコード照合システム</title>
     <!-- Quagga.js ライブラリの読み込み -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <script src="https://cloudflare.com"></script>
     <style>
         body { font-family: sans-serif; text-align: center; margin: 20px; background: #f0f0f0; }
         
@@ -93,6 +93,22 @@
         let detectionBuffer = [];
         const REQUIRED_CONSISTENT_READS = 3; // 同じ値が3回連続で一致したら確定とする
 
+        // 💡 各種mp3オーディオファイルの読み込み設定
+        // ※HTMLファイルと全く同じフォルダ（階層）にmp3ファイルを配置してください
+        const audioScan = new Audio('scan.mp3');
+        const audioMatch = new Audio('pingpong.mp3');
+        const audioMismatch = new Audio('boo.mp3');
+
+        // 音声再生用の共通関数（iOS対策として都度シークをリセット）
+        function playSound(audioObject) {
+            try {
+                audioObject.currentTime = 0; // 再生位置を最初に戻す
+                audioObject.play();
+            } catch (e) {
+                console.error("音声の再生に失敗しました。画面を一度タップしてからスキャンしてください。", e);
+            }
+        }
+
         // Quaggaの初期設定
         Quagga.init({
             inputStream: {
@@ -105,7 +121,7 @@
                     facingMode: "environment", // 背面カメラを優先使用
                     focusMode: "continuous"    // 連続オートフォーカス
                 },
-                // 💡 画面中央の緑枠と完全に一致するエリア（縦50%、横80%）のみを計算対象に制限
+                // 画面中央の緑枠と完全に一致するエリア（縦50%、横80%）のみを計算対象に制限
                 area: {
                     top: "25%",
                     bottom: "25%",
@@ -118,8 +134,7 @@
                 halfSample: true     // 処理の軽量化と精度のバランス
             },
             decoder: {
-                // 💡 一般的な規格に対応。JANコードのみ等に絞るとさらに劇的に精度が上がります
-                readers: ["ean_reader", "code_128_reader"] 
+                readers: ["ean_reader", "code_128_reader", "ean_8_reader", "code_39_reader"] 
             },
             locate: false // 解析エリアを限定したため、自動全体探索をオフにして処理を高速化
         }, function(err) {
@@ -141,12 +156,12 @@
             const code = data.codeResult.code;
             if (!code) return;
 
-            // 💡 誤読対策：複数回連続で同じ値が読めた場合のみ「正しい値」として採用
+            // 誤読対策：複数回連続で同じ値が読めた場合のみ「正しい値」として採用
             detectionBuffer.push(code);
             if (detectionBuffer.length < REQUIRED_CONSISTENT_READS) return;
 
             // バッファに溜まったデータがすべて一致しているか検証
-            const allMatch = detectionBuffer.every(val => val === detectionBuffer[0]);
+            const allMatch = detectionBuffer.every(val => val === code);
             if (!allMatch) {
                 detectionBuffer.shift(); // 不一致なら先頭を古いものとして1つ削除し、次の検出を待つ
                 return;
@@ -160,6 +175,10 @@
                 // 1つ目のコードを登録
                 code1 = confirmedCode;
                 document.getElementById('code1').innerText = confirmedCode;
+                
+                // 💡 1つ目の読み取り音（scan.mp3）を再生
+                playSound(audioScan);
+
                 // 同じバーコードを連続で読み込まないよう、2秒間シールド期間を設ける
                 isScanning = false;
                 setTimeout(() => { isScanning = true; }, 2000); 
@@ -167,6 +186,7 @@
                 // 2つ目のコードを登録
                 code2 = confirmedCode;
                 document.getElementById('code2').innerText = confirmedCode;
+                
                 isScanning = false;
                 checkMatch();
             }
@@ -178,9 +198,13 @@
             if (code1 === code2) {
                 messageEl.innerText = "一致（OK）";
                 messageEl.className = "match";
+                // 💡 一致した時の音（pingpong.mp3）を再生
+                playSound(audioMatch);
             } else {
                 messageEl.innerText = "不一致（NG）";
                 messageEl.className = "mismatch";
+                // 💡 不一致の時の音（boo.mp3）を再生
+                playSound(audioMismatch);
             }
         }
 
