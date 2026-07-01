@@ -93,7 +93,7 @@
         let detectionBuffer = [];
         const REQUIRED_CONSISTENT_READS = 3; // 同じ値が3回連続で一致したら確定とする
 
-        // 💡 各種mp3オーディオファイルの読み込み設定
+        // 💡 お手持ちのmp3オーディオファイルの読み込み設定
         // ※HTMLファイルと全く同じフォルダ（階層）にmp3ファイルを配置してください
         const audioScan = new Audio('scan.mp3');
         const audioMatch = new Audio('pingpong.mp3');
@@ -105,7 +105,7 @@
                 audioObject.currentTime = 0; // 再生位置を最初に戻す
                 audioObject.play();
             } catch (e) {
-                console.error("音声の再生に失敗しました。画面を一度タップしてからスキャンしてください。", e);
+                console.error("音声の再生に失敗しました。", e);
             }
         }
 
