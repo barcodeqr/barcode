@@ -4,13 +4,51 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>バーコード照合システム</title>
-    <!-- 💡 ライブラリの読み込みはここだけで大丈夫です -->
+    <!-- Quagga.js ライブラリの読み込み -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
     <style>
         body { font-family: sans-serif; text-align: center; margin: 20px; background: #f0f0f0; }
-        #interactive.viewport { width: 100%; max-width: 500px; height: 300px; margin: 0 auto; background: #000; position: relative; overflow: hidden; }
+        
+        /* カメラ表示エリアのスタイル設定 */
+        #interactive.viewport { 
+            width: 100%; 
+            max-width: 500px; 
+            height: 300px; 
+            margin: 0 auto; 
+            background: #000; 
+            position: relative; 
+            overflow: hidden; 
+        }
         #interactive.viewport canvas.drawingBuffer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
         #interactive.viewport video { width: 100%; height: 100%; object-fit: cover; }
+
+        /* 💡 画面中央の緑枠（スキャンエリアガイド） */
+        .scan-area-guide {
+            position: absolute;
+            top: 25%;
+            left: 10%;
+            width: 80%;
+            height: 50%;
+            border: 3px solid #00ff66; /* 鮮やかな緑枠 */
+            box-sizing: border-box;
+            box-shadow: 0 0 0 400px rgba(0, 0, 0, 0.4); /* 枠の外側を薄暗くして視認性を向上 */
+            border-radius: 8px;
+            z-index: 10;
+            pointer-events: none; /* クリックやタップイベントを透過 */
+        }
+
+        /* 💡 スキャンエリア中央の横線（レーザー演出） */
+        .scan-area-guide::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            width: 100%;
+            height: 2px;
+            background-color: #00ff66;
+            opacity: 0.7;
+        }
+
         .result-box { display: flex; justify-content: space-around; margin: 20px 0; }
         .code-display { background: white; padding: 15px; border-radius: 8px; width: 40%; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .code-display h3 { margin: 0 0 10px 0; font-size: 14px; color: #666; }
@@ -24,10 +62,12 @@
 <body>
 
     <h2>バーコード2点照合</h2>
-    <p>iPadのカメラをバーコードに向けてください</p>
+    <p>緑の枠内にバーコードを合わせてください</p>
 
-    <!-- カメラの映像がここに表示されます -->
-    <div id="interactive" class="viewport"></div>
+    <!-- カメラ映像表示エリア（中に緑枠の要素を配置） -->
+    <div id="interactive" class="viewport">
+        <div class="scan-area-guide"></div>
+    </div>
 
     <div class="result-box">
         <div class="code-display" id="box1">
@@ -40,117 +80,122 @@
         </div>
     </div>
 
-    <div id="judge-message"></div>
+    <div id="judge-message">確認中...</div>
 
-    <button onclick="resetSystem()">次の照合へ（リセット）</button>
+    <button id="reset-btn">リセット</button>
 
-    <!-- 音声ファイル -->
-    <audio id="sound-scan" src="scan.mp3" preload="auto"></audio>
-    <audio id="sound-pingpong" src="pingpong.mp3" preload="auto"></audio>
-    <audio id="sound-boo" src="boo.mp3" preload="auto"></audio>
+    <script>
+        let code1 = null;
+        let code2 = null;
+        let isScanning = true;
 
-<script>
-let code1 = null;
-let code2 = null;
-let isScanning = true;
+        // 誤読防止用のバッファ
+        let detectionBuffer = [];
+        const REQUIRED_CONSISTENT_READS = 3; // 同じ値が3回連続で一致したら確定とする
 
-// 誤読防止用のバッファ
-let detectionBuffer = [];
-const REQUIRED_CONSISTENT_READS = 3; // 同じ値が何回連続で検出されたら確定とするか
+        // Quaggaの初期設定
+        Quagga.init({
+            inputStream: {
+                name: "Live",
+                type: "LiveStream",
+                target: document.querySelector('#interactive'),
+                constraints: {
+                    width: { min: 640, ideal: 1280, max: 1920 }, // 解像度を高解像度（HD）に引き上げ
+                    height: { min: 480, ideal: 720, max: 1080 },
+                    facingMode: "environment", // 背面カメラを優先使用
+                    focusMode: "continuous"    // 連続オートフォーカス
+                },
+                // 💡 画面中央の緑枠と完全に一致するエリア（縦50%、横80%）のみを計算対象に制限
+                area: {
+                    top: "25%",
+                    bottom: "25%",
+                    left: "10%",
+                    right: "10%"
+                }
+            },
+            locator: {
+                patchSize: "medium", // バーコード探索の密度設定
+                halfSample: true     // 処理の軽量化と精度のバランス
+            },
+            decoder: {
+                // 💡 一般的な規格に対応。JANコードのみ等に絞るとさらに劇的に精度が上がります
+                readers: ["ean_reader", "code_128_reader"] 
+            },
+            locate: false // 解析エリアを限定したため、自動全体探索をオフにして処理を高速化
+        }, function(err) {
+            if (err) {
+                console.error(err);
+                alert("カメラの起動に失敗しました。カメラのアクセス許可を確認してください。");
+                return;
+            }
+            Quagga.start();
+        });
 
-Quagga.init({
-    inputStream: {
-        name: "Live",
-        type: "LiveStream",
-        target: document.querySelector('#interactive'),
-        constraints: {
-            width: { min: 640, ideal: 1280, max: 1920 }, // 解像度を上げて高密度バーコードに対応
-            height: { min: 480, ideal: 720, max: 1080 },
-            facingMode: "environment",
-            focusMode: "continuous" // オートフォーカスを有効化（対応端末のみ）
-        },
-    },
-    locator: {
-        patchSize: "medium", // バーコードを探す範囲のサイズ (small, medium, large)
-        halfSample: true     // 処理速度と精度のバランスを取る
-    },
-    decoder: {
-        // 💡 読み取り対象の規格を絞るほど精度が劇的に上がります（例: JANコードなら "ean_reader" のみ）
-        readers: ["ean_reader", "code_128_reader"], 
-        multiple: false // 1枚の画像から複数のバーコードを読まない
-    },
-    locate: true // バーコードの位置探索を有効化
-}, function(err) {
-    if (err) {
-        console.error(err);
-        alert("カメラの起動に失敗しました。");
-        return;
-    }
-    Quagga.start();
-});
+        // バーコード検出時の処理
+        Quagga.onDetected(function(data) {
+            if (!isScanning) return;
 
-// バーコード検出時の処理
-Quagga.onDetected(function(data) {
-    if (!isScanning) return;
+            // 信頼度の低い読み取りデータ（計算ノイズ）は即座に除外
+            if (data.codeResult.error && data.codeResult.error > 0.1) return;
 
-    // 信頼度の低いデータはスキップ
-    if (data.codeResult.error && data.codeResult.error > 0.1) return;
+            const code = data.codeResult.code;
+            if (!code) return;
 
-    const code = data.codeResult.code;
-    if (!code) return;
+            // 💡 誤読対策：複数回連続で同じ値が読めた場合のみ「正しい値」として採用
+            detectionBuffer.push(code);
+            if (detectionBuffer.length < REQUIRED_CONSISTENT_READS) return;
 
-    // 💡 複数回連続で同じ値が読めた場合のみ「正しいデータ」として採用（誤読対策）
-    detectionBuffer.push(code);
-    if (detectionBuffer.length < REQUIRED_CONSISTENT_READS) return;
+            // バッファに溜まったデータがすべて一致しているか検証
+            const allMatch = detectionBuffer.every(val => val === detectionBuffer[0]);
+            if (!allMatch) {
+                detectionBuffer.shift(); // 不一致なら先頭を古いものとして1つ削除し、次の検出を待つ
+                return;
+            }
 
-    // バッファ内の値がすべて一致しているか確認
-    const allMatch = detectionBuffer.every(val => val === detectionBuffer[0]);
-    if (!allMatch) {
-        detectionBuffer.shift(); // 先頭を削除して次を待つ
-        return;
-    }
+            // 確定した値を代入
+            const confirmedCode = detectionBuffer[0];
+            detectionBuffer = []; // バッファをリセット
 
-    // 確定したコードを処理
-    const confirmedCode = detectionBuffer[0];
-    detectionBuffer = []; // バッファをクリア
+            if (!code1) {
+                // 1つ目のコードを登録
+                code1 = confirmedCode;
+                document.getElementById('code1').innerText = confirmedCode;
+                // 同じバーコードを連続で読み込まないよう、2秒間シールド期間を設ける
+                isScanning = false;
+                setTimeout(() => { isScanning = true; }, 2000); 
+            } else if (!code2) {
+                // 2つ目のコードを登録
+                code2 = confirmedCode;
+                document.getElementById('code2').innerText = confirmedCode;
+                isScanning = false;
+                checkMatch();
+            }
+        });
 
-    if (!code1) {
-        code1 = confirmedCode;
-        document.getElementById('code1').innerText = confirmedCode;
-        isScanning = false;
-        setTimeout(() => { isScanning = true; }, 2000); // 2秒間シールドして重複読みを防ぐ
-    } else if (!code2) {
-        code2 = confirmedCode;
-        document.getElementById('code2').innerText = confirmedCode;
-        isScanning = false;
-        checkMatch();
-    }
-});
+        // 照合判定
+        function checkMatch() {
+            const messageEl = document.getElementById('judge-message');
+            if (code1 === code2) {
+                messageEl.innerText = "一致（OK）";
+                messageEl.className = "match";
+            } else {
+                messageEl.innerText = "不一致（NG）";
+                messageEl.className = "mismatch";
+            }
+        }
 
-// 照合判定
-function checkMatch() {
-    const messageEl = document.getElementById('judge-message');
-    if (code1 === code2) {
-        messageEl.innerText = "一致（OK）";
-        messageEl.className = "match";
-    } else {
-        messageEl.innerText = "不一致（NG）";
-        messageEl.className = "mismatch";
-    }
-}
-
-// リセット処理
-document.getElementById('reset-btn').addEventListener('click', function() {
-    code1 = null;
-    code2 = null;
-    isScanning = true;
-    detectionBuffer = [];
-    document.getElementById('code1').innerText = "-";
-    document.getElementById('code2').innerText = "-";
-    const messageEl = document.getElementById('judge-message');
-    messageEl.innerText = "確認中...";
-    messageEl.className = "";
-</script>
-
+        // リセット処理
+        document.getElementById('reset-btn').addEventListener('click', function() {
+            code1 = null;
+            code2 = null;
+            isScanning = true;
+            detectionBuffer = [];
+            document.getElementById('code1').innerText = "-";
+            document.getElementById('code2').innerText = "-";
+            const messageEl = document.getElementById('judge-message');
+            messageEl.innerText = "確認中...";
+            messageEl.className = "";
+        });
+    </script>
 </body>
 </html>
