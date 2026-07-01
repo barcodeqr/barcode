@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>バーコード照合システム</title>
-    <!-- バーコード読み取り用ライブラリ QuaggaJS の読み込み -->
-    <script src="https://cloudflare.com"></script>
+    <!-- 💡 ライブラリの読み込みはここだけで大丈夫です -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
     <style>
         body { font-family: sans-serif; text-align: center; margin: 20px; background: #f0f0f0; }
         #interactive.viewport { width: 100%; max-width: 500px; height: 300px; margin: 0 auto; background: #000; position: relative; overflow: hidden; }
@@ -44,8 +44,7 @@
 
     <button onclick="resetSystem()">次の照合へ（リセット）</button>
 
-    <!-- 音声ファイルの読み込み（あらかじめ同じフォルダに置いてください） -->
-    <!-- 💡 1つ目読み取り用の音声「scan.mp3」を追記しました -->
+    <!-- 音声ファイル -->
     <audio id="sound-scan" src="scan.mp3" preload="auto"></audio>
     <audio id="sound-pingpong" src="pingpong.mp3" preload="auto"></audio>
     <audio id="sound-boo" src="boo.mp3" preload="auto"></audio>
@@ -55,14 +54,12 @@
     let code2 = null;
     let isProcessing = false;
 
-    // 音声要素の取得
     const soundScan = document.getElementById('sound-scan');
     const soundPingpong = document.getElementById('sound-pingpong');
     const soundBoo = document.getElementById('sound-boo');
 
-    // 🔒 iOS Safariの音声自動再生制限を解除する関数
+    // iOS Safariの音声自動再生制限を解除する関数
     function unlockAudio() {
-        // すべての音声を空再生してアンロック
         const audios = [soundScan, soundPingpong, soundBoo];
         audios.forEach(audio => {
             audio.play().then(() => {
@@ -71,17 +68,14 @@
             }).catch(e => console.log("アンロック失敗:", e));
         });
 
-        // 1回タップされたらイベントを解除
         document.removeEventListener('click', unlockAudio);
         document.removeEventListener('touchstart', unlockAudio);
         
-        // 画面に準備完了を表示
         const msgElement = document.getElementById('judge-message');
         msgElement.innerText = "音声準備完了。1つ目を読み取ってください。";
         setTimeout(() => { if(msgElement.innerText.includes("音声準備")) msgElement.innerText = ""; }, 2000);
     }
 
-    // 画面タップ時にアンロックを起動
     document.addEventListener('click', unlockAudio);
     document.addEventListener('touchstart', unlockAudio);
 
@@ -131,22 +125,14 @@
         isProcessing = true;
 
         if (!code1) {
-            // 💡 1つ目のバーコードを読み取った処理
             code1 = scannedCode;
             document.getElementById('code1').innerText = code1;
-
-            // 🔊 1つ目読み取りの音を鳴らす
             soundScan.play().catch(e => console.log("音再生エラー:", e));
-
-            // 同じバーコードの連続誤読防止（1.5秒後に次を読めるようにする）
             setTimeout(() => { isProcessing = false; }, 1500);
 
         } else if (!code2) {
-            // 2つ目のバーコードを読み取った処理
             code2 = scannedCode;
             document.getElementById('code2').innerText = code2;
-
-            // 判定処理へ（ここでピンポン、またはブーが鳴ります）
             checkCodes();
         }
     });
