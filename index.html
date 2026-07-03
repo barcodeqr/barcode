@@ -115,33 +115,39 @@
         let lengthHistory = []; 
         const REQUIRED_CONSISTENT_READS = 7; 
 
-        // 💡 対策：1つ目と2つ目のスキャン音プレイヤーを完全に別々にして衝突を回避
-        const audioScan1 = new Audio('scan.mp3');
-        const audioScan2 = new Audio('scan.mp3');
+        // 各種mp3オーディオファイルの読み込み設定
+        const audioScan = new Audio('scan.mp3');
         const audioMatch = new Audio('pingpong.mp3');
         const audioMismatch = new Audio('boo.mp3');
 
         // iPhone（iOS）の制限を突破するための処理
         document.getElementById('start-audio-btn').addEventListener('click', function() {
-            audioScan1.play().then(() => { audioScan1.pause(); audioScan1.currentTime = 0; });
-            audioScan2.play().then(() => { audioScan2.pause(); audioScan2.currentTime = 0; });
+            audioScan.play().then(() => { audioScan.pause(); audioScan.currentTime = 0; });
             audioMatch.play().then(() => { audioMatch.pause(); audioMatch.currentTime = 0; });
             audioMismatch.play().then(() => { audioMismatch.pause(); audioMismatch.currentTime = 0; });
             this.style.display = 'none';
         });
 
         // 音声再生用の共通関数
-        function playSound(audioObject) {
+        function playSound(audioObject, callback) {
             try {
                 audioObject.currentTime = 0;
+                audioObject.onended = null;
+                
+                if (callback) {
+                    audioObject.onended = callback;
+                }
+
                 const playPromise = audioObject.play();
                 if (playPromise !== undefined) {
                     playPromise.catch(error => {
                         console.error("再生がブロックされました。", error);
+                        if (callback) callback();
                     });
                 }
             } catch (e) {
                 console.error("音声の再生エラー:", e);
+                if (callback) callback();
             }
         }
 
@@ -204,6 +210,7 @@
                 return;
             }
 
+            // 💡 修正：配列オブジェクトではなく、配列の1つ目（純粋な文字列データ）を取り出す
             const confirmedCode = detectionBuffer[0];
             detectionBuffer = [];
             lengthHistory = []; 
@@ -212,8 +219,8 @@
                 code1 = confirmedCode;
                 document.getElementById('code1').innerText = confirmedCode;
                 
-                // 1つ目のスキャン音
-                playSound(audioScan1);
+                // 1つ目の読み取り音
+                playSound(audioScan);
 
                 isScanning = false;
                 setTimeout(() => { isScanning = true; }, 2000); 
@@ -223,22 +230,10 @@
                 
                 isScanning = false;
                 
-                // 💡 2つ目の独立したプレイヤーでスキャン音を再生
-                playSound(audioScan2);
-
-                // 💡 対策：音声終了イベントに依存せず、確実に0.45秒後に判定（ピンポン）を呼び出す2重シールド構造
-                let hasJudged = false;
-                function triggerCheck() {
-                    if (hasJudged) return;
-                    hasJudged = true;
+                // 2つ目のスキャン音が完全に鳴り終わった後に判定
+                playSound(audioScan, function() {
                     checkMatch();
-                }
-
-                // スキャン音の再生が終わったら実行（正常系）
-                audioScan2.onended = triggerCheck;
-
-                // iOSがイベントを無視した場合の強制バックアップ（450ミリ秒後に実行）
-                setTimeout(triggerCheck, 450);
+                });
             }
         });
 
@@ -268,7 +263,6 @@
             const messageEl = document.getElementById('judge-message');
             messageEl.innerText = "確認中...";
             messageEl.className = "";
-            audioScan2.onended = null; // イベントクリア
         });
     </script>
 </body>
