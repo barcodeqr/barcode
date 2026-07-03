@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QRコード照合システム</title>
-    <!-- 💡 jsQRの正しいCDNに変更しました -->
+    <!-- jsQRのCDN -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
         body { font-family: sans-serif; text-align: center; margin: 20px; background: #f0f0f0; }
@@ -181,7 +181,6 @@
                 const imageData = ctx.getImageData(sx, sy, sw, sh);
                 
                 if (isScanning) {
-                    // 💡 jsQRに渡す幅と高さは、全体ではなく切り出したエリア（sw, sh）のサイズを適用
                     const code = jsQR(imageData.data, sw, sh, {
                         inversionAttempts: "dontInvert",
                     });
@@ -197,9 +196,8 @@
         // QR検出時のバリデーションと登録
         function handleDetected(confirmedCode) {
             detectionBuffer.push(confirmedCode);
-            if (detectionBuffer.length < REQUIRED_CONSIPSTENT_READS) {
-                // タイポ修正：REQUIRED_CONSISTENT_READSに統一
-            }
+            
+            // 【修正箇所】タイポを修正し、条件判定を1行に整理
             if (detectionBuffer.length < REQUIRED_CONSISTENT_READS) return;
 
             const allMatch = detectionBuffer.every(val => val === confirmedCode);
@@ -215,7 +213,7 @@
                 document.getElementById('code1').innerText = confirmedCode;
                 playSound(audioScan1);
                 isScanning = false;
-                // 1つ目を読んだ後、連続で2つ目に同じ（または近くの）QRを即時誤読するのを防ぐため、2秒間スキャンを停止
+                // 1つ目を読んだ後、連続で2つ目に同じQRを即時誤読するのを防ぐため、2秒間スキャンを停止
                 setTimeout(() => { if (!code2) isScanning = true; }, 2000); 
             } else if (!code2) {
                 code2 = confirmedCode;
