@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QRコード照合システム</title>
-    <!-- GitHub Pagesでも超高速で読み込める軽量なjsQRライブラリを使用 -->
-    <script src="https://jsdelivr.net"></script>
+    <!-- 💡 変更：外部の重いサーバーを見に行かず、自分のGitHub内にあるファイルを読み込む（これで爆速になります） -->
+    <script src="jsQR.min.js"></script>
     <style>
         body { font-family: sans-serif; text-align: center; margin: 20px; background: #f0f0f0; }
         
@@ -26,7 +26,7 @@
             100% { transform: scale(1); }
         }
 
-        /* iPadの画面比率に合わせ、絶対にバグらないシンプルなカメラ表示枠に変更 */
+        /* iPadの画面比率に合わせたカメラ枠 */
         #interactive { 
             width: 100%; 
             max-width: 500px; 
@@ -37,13 +37,11 @@
             overflow: hidden; 
             border-radius: 8px;
         }
-        /* iPadのSafariで「真っ暗フリーズ」を防ぐための強制インライン指定 */
         #interactive video { 
             width: 100% !important; 
             height: 100% !important; 
             object-fit: cover !important; 
         }
-        /* 処理用の裏画面キャンバス（画面には映りません） */
         #qr-canvas { display: none; }
 
         /* 画面中央の緑枠（スキャンエリアガイド） */
@@ -60,8 +58,6 @@
             z-index: 10;
             pointer-events: none;
         }
-
-        /* スキャンエリア中央の横線（レーザー演出） */
         .scan-area-guide::after {
             content: '';
             position: absolute;
@@ -86,20 +82,13 @@
 <body>
 
     <h2>QRコード 2点照合</h2>
-    
-    <!-- iPadの音声＆カメラ制限を一度に突破するための開始ボタン -->
     <button id="start-audio-btn">最初にタップしてスキャン開始</button>
-    
     <p>緑の枠内にQRコードを合わせてください</p>
 
-    <!-- カメラ映像表示エリア -->
     <div id="interactive">
-        <!-- iPad（Safari）のシアターモード暴走を防ぐため、最初からビデオタグをインライン配置 -->
         <video id="webcam" autoplay playsinline muted></video>
         <div class="scan-area-guide"></div>
     </div>
-    
-    <!-- 裏処理用の隠しキャンバス -->
     <canvas id="qr-canvas"></canvas>
 
     <div class="result-box">
@@ -114,9 +103,7 @@
     </div>
 
     <div id="judge-message">確認中...</div>
-
     <button id="reset-btn">リセット</button>
-
     <script>
         let code1 = null;
         let code2 = null;
@@ -126,7 +113,7 @@
         let detectionBuffer = [];
         const REQUIRED_CONSISTENT_READS = 3; // 3回連続で同じ値が読めたら確定
 
-        // 音声ファイルの指定
+        // ご指定の3つのオーディオファイルを実装
         const audioScan = new Audio('scan.mp3');
         const audioMatch = new Audio('pingpong.mp3');
         const audioMismatch = new Audio('boo.mp3');
