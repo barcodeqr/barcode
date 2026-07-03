@@ -3,15 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>バーコード照合システム</title>
-    <!-- 一番最初に100%映っていたQuaggaJSをそのまま使用 -->
-    <script src="https://cloudflare.com"></script>
-    <!-- QRコード用：カメラ起動には一切干渉しない軽量ライブラリ -->
+    <title>QRコード照合システム</title>
+    <!-- GitHub Pagesでも超高速で読み込める軽量なjsQRライブラリを使用 -->
     <script src="https://jsdelivr.net"></script>
     <style>
         body { font-family: sans-serif; text-align: center; margin: 20px; background: #f0f0f0; }
         
-        #interactive.viewport { 
+        /* 音声有効化ボタンのスタイル */
+        #start-audio-btn {
+            background: #ffcc00;
+            color: #333;
+            font-weight: bold;
+            border: 2px solid #ff9900;
+            padding: 15px 30px;
+            font-size: 18px;
+            margin-bottom: 15px;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+            100% { transform: scale(1); }
+        }
+
+        /* iPadの画面比率に合わせ、絶対にバグらないシンプルなカメラ表示枠に変更 */
+        #interactive { 
             width: 100%; 
             max-width: 500px; 
             height: 300px; 
@@ -19,10 +35,18 @@
             background: #000; 
             position: relative; 
             overflow: hidden; 
+            border-radius: 8px;
         }
-        #interactive.viewport canvas.drawingBuffer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
-        #interactive.viewport video { width: 100%; height: 100%; object-fit: cover; }
+        /* iPadのSafariで「真っ暗フリーズ」を防ぐための強制インライン指定 */
+        #interactive video { 
+            width: 100% !important; 
+            height: 100% !important; 
+            object-fit: cover !important; 
+        }
+        /* 処理用の裏画面キャンバス（画面には映りません） */
+        #qr-canvas { display: none; }
 
+        /* 画面中央の緑枠（スキャンエリアガイド） */
         .scan-area-guide {
             position: absolute;
             top: 25%;
@@ -36,6 +60,8 @@
             z-index: 10;
             pointer-events: none;
         }
+
+        /* スキャンエリア中央の横線（レーザー演出） */
         .scan-area-guide::after {
             content: '';
             position: absolute;
@@ -51,26 +77,30 @@
         .code-display { background: white; padding: 15px; border-radius: 8px; width: 40%; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .code-display h3 { margin: 0 0 10px 0; font-size: 14px; color: #666; }
         .code-value { font-size: 18px; font-weight: bold; min-height: 27px; word-break: break-all; }
-        #judge-message { font-size: 24px; font-weight: bold; margin-top: 20px; padding: 10px; border-radius: 8px; }
+        #judge-message { font-size: 24px; font-weight: bold; margin-top: 20px; padding: 10px; border-radius: 8px; min-height: 40px; }
         .match { background: #d4edda; color: #155724; }
         .mismatch { background: #f8d7da; color: #721c24; }
         button { padding: 12px 24px; font-size: 16px; margin: 10px; cursor: pointer; border-radius: 5px; border: none; background: #007aff; color: white; }
-        
-        #hidden-canvas { display: none; }
     </style>
 </head>
 <body>
 
-    <h2>バーコード・QR 2点照合</h2>
-    <p>緑の枠内にバーコードまたはQRコードを合わせてください</p>
+    <h2>QRコード 2点照合</h2>
+    
+    <!-- iPadの音声＆カメラ制限を一度に突破するための開始ボタン -->
+    <button id="start-audio-btn">最初にタップしてスキャン開始</button>
+    
+    <p>緑の枠内にQRコードを合わせてください</p>
 
-    <!-- 最初と全く同じHTML構造 -->
-    <div id="interactive" class="viewport">
+    <!-- カメラ映像表示エリア -->
+    <div id="interactive">
+        <!-- iPad（Safari）のシアターモード暴走を防ぐため、最初からビデオタグをインライン配置 -->
+        <video id="webcam" autoplay playsinline muted></video>
         <div class="scan-area-guide"></div>
     </div>
     
-    <!-- QR解析用の隠しキャンバス -->
-    <canvas id="hidden-canvas"></canvas>
+    <!-- 裏処理用の隠しキャンバス -->
+    <canvas id="qr-canvas"></canvas>
 
     <div class="result-box">
         <div class="code-display" id="box1">
@@ -84,6 +114,7 @@
     </div>
 
     <div id="judge-message">確認中...</div>
+
     <button id="reset-btn">リセット</button>
 
     <script>
@@ -91,73 +122,102 @@
         let code2 = null;
         let isScanning = true;
 
+        // 誤読防止バッファ設定
         let detectionBuffer = [];
-        let lengthHistory = []; 
-        const REQUIRED_CONSISTENT_READS = 4; // 誤読防止（少し軽めに調整）
+        const REQUIRED_CONSISTENT_READS = 3; // 3回連続で同じ値が読めたら確定
 
-        const canvas = document.getElementById('hidden-canvas');
+        // 音声ファイルの指定
+        const audioScan = new Audio('scan.mp3');
+        const audioMatch = new Audio('pingpong.mp3');
+        const audioMismatch = new Audio('boo.mp3');
+
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('qr-canvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-        // 💡 最初と「1文字も変えていない」Quaggaの起動処理（これで絶対に映ります）
-        Quagga.init({
-            inputStream: {
-                name: "Live",
-                type: "LiveStream",
-                target: document.querySelector('#interactive'),
-                constraints: {
-                    width: { min: 640, ideal: 1280, max: 1920 },
-                    height: { min: 480, ideal: 720, max: 1080 },
-                    facingMode: "environment",
-                    focusMode: "continuous"
-                },
-                area: { top: "25%", bottom: "25%", left: "10%", right: "10%" }
-            },
-            locator: { patchSize: "medium", halfSample: true },
-            decoder: {
-                readers: ["ean_reader", "code_128_reader", "code_39_reader"] 
-            },
-            locate: false
-        }, function(err) {
-            if (err) {
-                console.error(err);
-                alert("カメラの起動に失敗しました。スマホを再起動してみてください。");
-                return;
+        // iPad（iOS）の音声解放とカメラの同時起動
+        document.getElementById('start-audio-btn').addEventListener('click', function() {
+            // タップ時に無音再生してiOSのロックを解除
+            audioScan.play().then(() => { audioScan.pause(); audioScan.currentTime = 0; });
+            audioMatch.play().then(() => { audioMatch.pause(); audioMatch.currentTime = 0; });
+            audioMismatch.play().then(() => { audioMismatch.pause(); audioMismatch.currentTime = 0; });
+            this.style.display = 'none';
+
+            // カメラの起動
+            startiPadCamera();
+        });
+
+        // 音声再生用共通関数
+        function playSound(audioObject, callback) {
+            try {
+                audioObject.currentTime = 0;
+                audioObject.onended = null;
+                
+                if (callback) {
+                    audioObject.onended = callback;
+                }
+
+                const playPromise = audioObject.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.error("再生がブロックされました。", error);
+                        if (callback) callback();
+                    });
+                }
+            } catch (e) {
+                console.error("音声の再生エラー:", e);
+                if (callback) callback();
             }
-            Quagga.start();
-            // カメラ起動に成功したら、裏でQRコードの監視ループを開始
-            requestAnimationFrame(qrScanLoop);
-        });
+        }
 
-        // 💡 バーコードが読まれた時の処理（最初のロジックそのまま）
-        Quagga.onDetected(function(data) {
-            if (!isScanning) return;
-            if (data.codeResult.error && data.codeResult.error > 0.05) return;
-            const code = data.codeResult.code;
-            if (code) handleConfirmedCode(code);
-        });
+        // iPadに最適化したカメラ起動処理
+        async function startiPadCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: "environment",
+                        width: { ideal: 1280 }, 
+                        height: { ideal: 720 } 
+                    },
+                    audio: false
+                });
+                video.srcObject = stream;
+                video.setAttribute("playsinline", "true");
+                video.setAttribute("webkit-playsinline", "true");
+                
+                video.addEventListener('loadedmetadata', () => {
+                    // リアルタイム解析ループを開始
+                    requestAnimationFrame(scanLoop);
+                });
+            } catch (err) {
+                console.error("カメラ起動エラー:", err);
+                alert("カメラの起動に失敗しました。iPad設定でSafariのカメラ権限を確認してください。");
+            }
+        }
 
-        // 💡 裏側で「映っている映像」を1コマずつQR解析するループ（カメラの邪魔をしません）
-        function qrScanLoop() {
-            if (isScanning) {
-                const video = document.querySelector('#interactive video');
-                if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    
+        // 毎フレームのQRコード解析ループ（メインエンジン）
+        function scanLoop() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                if (isScanning) {
                     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
-                    
+                    const qrCode = jsQR(imageData.data, imageData.width, imageData.height, {
+                        inversionAttempts: "dontInvert",
+                    });
+
                     if (qrCode && qrCode.data) {
-                        handleConfirmedCode(qrCode.data);
+                        handleDetectedCode(qrCode.data);
                     }
                 }
             }
-            requestAnimationFrame(qrScanLoop);
+            requestAnimationFrame(scanLoop);
         }
 
-        // 💡 コードが確定した時の共通処理
-        function handleConfirmedCode(code) {
+        // コード読み取り時のバッファ＆判定処理
+        function handleDetectedCode(code) {
             detectionBuffer.push(code);
             if (detectionBuffer.length < REQUIRED_CONSISTENT_READS) return;
 
@@ -173,29 +233,41 @@
             if (!code1) {
                 code1 = confirmedCode;
                 document.getElementById('code1').innerText = confirmedCode;
+                
+                playSound(audioScan);
                 isScanning = false;
+                
+                // 1つ目の読み取り完了後、2秒間は連続誤読防止のためスキャン停止
                 setTimeout(() => { isScanning = true; }, 2000); 
             } else if (!code2) {
                 code2 = confirmedCode;
                 document.getElementById('code2').innerText = confirmedCode;
                 isScanning = false;
-                checkMatch();
+                
+                // 2つ目のスキャン音が終わってから0.2秒待って判定へ
+                playSound(audioScan, function() {
+                    setTimeout(() => {
+                        checkMatch();
+                    }, 200);
+                });
             }
         }
 
-        // 照合判定（元の仕様）
+        // 照合判定ロジック
         function checkMatch() {
             const messageEl = document.getElementById('judge-message');
             if (code1 === code2) {
                 messageEl.innerText = "一致（OK）";
                 messageEl.className = "match";
+                playSound(audioMatch);
             } else {
                 messageEl.innerText = "不一致（NG）";
                 messageEl.className = "mismatch";
+                playSound(audioMismatch);
             }
         }
 
-        // リセット処理（元の仕様）
+        // リセットボタンの処理
         document.getElementById('reset-btn').addEventListener('click', function() {
             code1 = null;
             code2 = null;
