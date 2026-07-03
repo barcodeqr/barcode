@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QRコード照合システム</title>
-    <!-- 💡 Quaggaから高精度なQRコード解析ライブラリ「jsQR」に変更 -->
-    <script src="https://jsdelivr.net"></script>
+    <!-- 💡 jsQRの正しいCDNに変更しました -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
         body { font-family: sans-serif; text-align: center; margin: 20px; background: #f0f0f0; }
         
@@ -19,6 +19,8 @@
             font-size: 18px;
             margin-bottom: 15px;
             animation: pulse 1.5s infinite;
+            cursor: pointer;
+            border-radius: 5px;
         }
         @keyframes pulse {
             0% { transform: scale(1); }
@@ -36,7 +38,6 @@
             position: relative; 
             overflow: hidden; 
         }
-        /* 💡 jsQR用にvideoとcanvasの配置を最適化 */
         #interactive.viewport video { width: 100%; height: 100%; object-fit: cover; }
         #interactive.viewport canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: none; }
 
@@ -113,7 +114,7 @@
         let code2 = null;
         let isScanning = true;
 
-        // 誤読防止バッファ設定（QRはバーコードより誤読が少ないため3回一致で確定）
+        // 誤読防止バッファ設定
         let detectionBuffer = [];
         const REQUIRED_CONSISTENT_READS = 3; 
 
@@ -130,7 +131,6 @@
             audioMatch.play().then(() => { audioMatch.pause(); audioMatch.currentTime = 0; });
             audioMismatch.play().then(() => { audioMismatch.pause(); audioMismatch.currentTime = 0; });
             this.style.display = 'none';
-            // ボタン押下後にカメラ起動
             initCamera();
         });
 
@@ -161,7 +161,7 @@
                 requestAnimationFrame(tick);
             }).catch(function(err) {
                 console.error(err);
-                alert("カメラの起動に失敗しました。");
+                alert("カメラの起動に失敗しました。カメラのアクセス権限を確認してください。");
             });
         }
 
@@ -181,8 +181,8 @@
                 const imageData = ctx.getImageData(sx, sy, sw, sh);
                 
                 if (isScanning) {
-                    // jsQRでQRコードをデコード
-                    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    // 💡 jsQRに渡す幅と高さは、全体ではなく切り出したエリア（sw, sh）のサイズを適用
+                    const code = jsQR(imageData.data, sw, sh, {
                         inversionAttempts: "dontInvert",
                     });
 
@@ -197,6 +197,9 @@
         // QR検出時のバリデーションと登録
         function handleDetected(confirmedCode) {
             detectionBuffer.push(confirmedCode);
+            if (detectionBuffer.length < REQUIRED_CONSIPSTENT_READS) {
+                // タイポ修正：REQUIRED_CONSISTENT_READSに統一
+            }
             if (detectionBuffer.length < REQUIRED_CONSISTENT_READS) return;
 
             const allMatch = detectionBuffer.every(val => val === confirmedCode);
@@ -212,7 +215,8 @@
                 document.getElementById('code1').innerText = confirmedCode;
                 playSound(audioScan1);
                 isScanning = false;
-                setTimeout(() => { isScanning = true; }, 2000); 
+                // 1つ目を読んだ後、連続で2つ目に同じ（または近くの）QRを即時誤読するのを防ぐため、2秒間スキャンを停止
+                setTimeout(() => { if (!code2) isScanning = true; }, 2000); 
             } else if (!code2) {
                 code2 = confirmedCode;
                 document.getElementById('code2').innerText = confirmedCode;
