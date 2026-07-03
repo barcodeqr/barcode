@@ -114,7 +114,7 @@
         // 誤読防止バッファ設定
         let detectionBuffer = [];
         let lengthHistory = []; 
-        const REQUIRED_CONSISTENT_READS = 3; // 💡 QRコードが読みにくい場合、検証回数を「3回」に少し減らすと劇的にスキャンしやすくなります
+        const REQUIRED_CONSISTENT_READS = 3; 
 
         // 各種mp3オーディオファイルの読み込み設定
         const audioScan = new Audio('scan.mp3');
@@ -158,6 +158,7 @@
         function startCamera() {
             html5QrCode = new Html5Qrcode("interactive");
             
+            // 💡 改善：QRコードのフォーマットを配列の先頭に配置し、最優先でデコードするように配置
             const formats = [
                 Html5QrcodeSupportedFormats.QR_CODE,
                 Html5QrcodeSupportedFormats.EAN_13,
@@ -166,31 +167,25 @@
                 Html5QrcodeSupportedFormats.CODE_39
             ];
 
-            // 💡 改善：QRコードを確実に捉えるための最強設定
+            // 💡 改善：カメラエラーを起こす「厳密な比率指定（aspectRatio）」を完全に削除し、安全性を最優先にしました
             const config = {
-                fps: 20, // 処理スピードをアップ
-                // 💡 縦画面（スマホを縦に持つ）に最適なアスペクト比（9:16 = 0.5625）に変更
-                // これによりズームされすぎず、高解像度のままQRコードを全体に捉えられます
-                aspectRatio: 0.5625, 
+                fps: 20, 
                 qrbox: function(width, height) {
-                    // 💡 スキャン実効エリアを大きく広げ、QRコード全体が余裕で入るサイズに調整
-                    return { width: width * 0.9, height: height * 0.8 };
+                    // 横幅と縦幅の小さい方を基準に、正方形に近い広めの認識エリアを動的に作成（QR・バーコード両方に強い設定）
+                    const minSize = Math.min(width, height);
+                    return { width: Math.floor(minSize * 0.85), height: Math.floor(minSize * 0.85) };
                 },
                 formatsToSupport: formats
             };
 
-            // 💡 カメラ起動オプションに高解像度（HD画質）を強制指定
+            // 💡 改善：エラーが起きにくい最もシンプルな形式でカメラをスタート
             html5QrCode.start(
-                { 
-                    facingMode: "environment"
-                }, 
+                { facingMode: "environment" }, 
                 config,
                 onScanSuccess
             ).catch(err => {
                 console.error("カメラ起動エラー:", err);
-                // 💡 万が一縦画面比率（0.5625）に対応していない古い端末の場合、比率指定なしで再起動を試みる
-                console.log("アスペクト比なしで再試行します...");
-                html5QrCode.start({ facingMode: "environment" }, { fps: 20, formatsToSupport: formats }, onScanSuccess);
+                alert("カメラの起動に失敗しました。ページを再読み込みするか、カメラの許可設定を確認してください。");
             });
         }
 
@@ -211,7 +206,7 @@
                 return;
             }
 
-            const confirmedCode = detectionBuffer[0];
+            const confirmedCode = detectionBuffer;
             detectionBuffer = [];
             lengthHistory = []; 
 
