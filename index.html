@@ -1,203 +1,126 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QRコード照合システム</title>
     <!-- jsQRのCDN -->
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsqr.min.js"></script>
     <style>
         body { font-family: sans-serif; text-align: center; margin: 20px; background: #f0f0f0; }
+        #start-audio-btn { background: #ffcc00; color: #333; font-weight: bold; border: 2px solid #ff9900; padding: 15px 30px; font-size: 18px; margin-bottom: 15px; animation: pulse 1.5s infinite; cursor: pointer; border-radius: 5px; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }
         
-        /* 音声有効化ボタンのスタイル */
-        #start-audio-btn {
-            background: #ffcc00;
-            color: #333;
-            font-weight: bold;
-            border: 2px solid #ff9900;
-            padding: 15px 30px;
-            font-size: 18px;
-            margin-bottom: 15px;
-            animation: pulse 1.5s infinite;
-            cursor: pointer;
-            border-radius: 5px;
-        }
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.03); }
-            100% { transform: scale(1); }
-        }
-
-        /* カメラ表示エリアのスタイル設定 */
-        #interactive.viewport { 
-            width: 100%; 
-            max-width: 500px; 
-            height: 300px; 
-            margin: 0 auto; 
-            background: #000; 
-            position: relative; 
-            overflow: hidden; 
-        }
+        #interactive.viewport { width: 100%; max-width: 500px; height: 300px; margin: 0 auto; background: #000; position: relative; overflow: hidden; }
         #interactive.viewport video { width: 100%; height: 100%; object-fit: cover; }
-        #interactive.viewport canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: none; }
-
-        /* 画面中央の緑枠（スキャンエリアガイド） */
-        .scan-area-guide {
-            position: absolute;
-            top: 25%;
-            left: 10%;
-            width: 80%;
-            height: 50%;
-            border: 3px solid #00ff66;
-            box-sizing: border-box;
-            box-shadow: 0 0 0 400px rgba(0, 0, 0, 0.4);
-            border-radius: 8px;
-            z-index: 10;
-            pointer-events: none;
-        }
-
-        /* スキャンエリア中央の横線（レーザー演出） */
-        .scan-area-guide::after {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 50%;
-            width: 100%;
-            height: 2px;
-            background-color: #00ff66;
-            opacity: 0.7;
-        }
-
-        .result-box { display: flex; justify-content: space-around; margin: 20px 0; }
-        .code-display { background: white; padding: 15px; border-radius: 8px; width: 40%; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .code-display h3 { margin: 0 0 10px 0; font-size: 14px; color: #666; }
-        .code-value { font-size: 18px; font-weight: bold; min-height: 27px; word-break: break-all; }
-        #judge-message { font-size: 24px; font-weight: bold; margin-top: 20px; padding: 10px; border-radius: 8px; }
-        .match { background: #d4edda; color: #155724; }
-        .mismatch { background: #f8d7da; color: #721c24; }
-        button { padding: 12px 24px; font-size: 16px; margin: 10px; cursor: pointer; border-radius: 5px; border: none; background: #007aff; color: white; }
+        #qr-canvas { display: none; }
+        
+        .scan-area-guide { position: absolute; top: 25%; left: 10%; width: 80%; height: 50%; border: 3px solid #00ff66; box-sizing: border-box; box-shadow: 0 0 0 400px rgba(0, 0, 0, 0.4); border-radius: 8px; z-index: 10; pointer-events: none; }
+        .scan-area-guide::after { content: ''; position: absolute; left: 0; top: 50%; width: 100%; height: 2px; background: #00ff66; box-shadow: 0 0 8px #00ff66; animation: scanRadar 2s linear infinite; }
+        @keyframes scanRadar { 0% { top: 0%; } 50% { top: 100%; } 100% { top: 0%; } }
+        
+        .data-display { margin: 20px auto; max-width: 500px; background: #fff; padding: 15px; border-radius: 8px; text-align: left; }
+        .data-row { margin: 10px 0; font-size: 18px; }
+        .code-val { font-weight: bold; color: #333; margin-left: 10px; word-break: break-all; }
+        
+        #judge-message { font-size: 24px; font-weight: bold; text-align: center; margin: 15px 0; padding: 10px; border-radius: 5px; background: #eee; }
+        .match { background: #d4edda !important; color: #155724; }
+        .mismatch { background: #f8d7da !important; color: #721c24; }
+        
+        #reset-btn { background: #666; color: #fff; border: none; padding: 10px 20px; font-size: 16px; cursor: pointer; border-radius: 4px; width: 100%; }
     </style>
 </head>
 <body>
 
-    <h2>QRコード2点照合</h2>
-    
-    <!-- iPhone用の音声解放ボタン -->
-    <button id="start-audio-btn">最初にタップしてスキャン開始</button>
-    
-    <p>緑の枠内にQRコードを合わせてください</p>
+    <h1>QRコード照合システム</h1>
+    <button id="start-audio-btn">システムを開始する</button>
 
-    <!-- カメラ映像表示エリア -->
     <div id="interactive" class="viewport">
-        <video id="preview" playsinline></video>
-        <canvas id="hidden-canvas"></canvas>
+        <video id="webcam-video" playsinline></video>
         <div class="scan-area-guide"></div>
     </div>
 
-    <div class="result-box">
-        <div class="code-display" id="box1">
-            <h3>1つ目のQRコード</h3>
-            <div id="code1" class="code-value">-</div>
-        </div>
-        <div class="code-display" id="box2">
-            <h3>2つ目のQRコード</h3>
-            <div id="code2" class="code-value">-</div>
-        </div>
+    <canvas id="qr-canvas"></canvas>
+
+    <div class="data-display">
+        <div class="data-row">1つ目: <span id="code1" class="code-val">-</span></div>
+        <div class="data-row">2つ目: <span id="code2" class="code-val">-</span></div>
+        <div id="judge-message">確認中...</div>
+        <button id="reset-btn">リセット</button>
     </div>
 
-    <div id="judge-message">確認中...</div>
-
-    <button id="reset-btn">リセット</button>
-
     <script>
+        // --- 画面要素の取得 ---
+        const video = document.getElementById('webcam-video');
+        const canvas = document.getElementById('qr-canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const audioBtn = document.getElementById('start-audio-btn');
+
+        // --- 状態管理変数 ---
         let code1 = null;
         let code2 = null;
         let isScanning = true;
-
-        // 誤読防止バッファ設定
         let detectionBuffer = [];
-        const REQUIRED_CONSISTENT_READS = 3; 
+        const REQUIRED_CONSISTENT_READS = 3; // 3回連続一致で確定
 
-        // 音声プレイヤー
-        const audioScan1 = new Audio('scan.mp3');
-        const audioScan2 = new Audio('scan.mp3');
-        const audioMatch = new Audio('pingpong.mp3');
-        const audioMismatch = new Audio('boo.mp3');
+        // --- ダミーの音声オブジェクト（実際のファイルがない場合のエラー防止） ---
+        const audioScan1 = new Audio('scan1.mp3');
+        const audioScan2 = new Audio('scan2.mp3');
+        const audioMatch = new Audio('match.mp3');
+        const audioMismatch = new Audio('mismatch.mp3');
 
-        // iPhone（iOS）の制限突破処理
-        document.getElementById('start-audio-btn').addEventListener('click', function() {
-            audioScan1.play().then(() => { audioScan1.pause(); audioScan1.currentTime = 0; });
-            audioScan2.play().then(() => { audioScan2.pause(); audioScan2.currentTime = 0; });
-            audioMatch.play().then(() => { audioMatch.pause(); audioMatch.currentTime = 0; });
-            audioMismatch.play().then(() => { audioMismatch.pause(); audioMismatch.currentTime = 0; });
-            this.style.display = 'none';
-            initCamera();
+        function playSound(audio) {
+            if (!audio) return;
+            audio.currentTime = 0;
+            audio.play().catch(err => console.log("音声再生が制限されました（ファイル不在など）:", err.message));
+        }
+
+        // --- カメラ起動制御 ---
+        audioBtn.addEventListener('click', () => {
+            audioBtn.style.display = 'none';
+            startCamera();
         });
 
-        function playSound(audioObject) {
-            try {
-                audioObject.currentTime = 0;
-                const playPromise = audioObject.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch(error => console.error("再生ブロック:", error));
-                }
-            } catch (e) {
-                console.error("音声再生エラー:", e);
-            }
+        function startCamera() {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                .then((stream) => {
+                    video.srcObject = stream;
+                    video.play();
+                    requestAnimationFrame(tick);
+                })
+                .catch((err) => {
+                    alert("カメラの起動に失敗しました。権限を許可してください。");
+                    console.error(err);
+                });
         }
 
-        const video = document.getElementById('preview');
-        const canvas = document.getElementById('hidden-canvas');
-        const ctx = canvas.getContext('2d');
-
-        // カメラ初期化関数
-        function initCamera() {
-            navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
-            }).then(function(stream) {
-                video.srcObject = stream;
-                video.setAttribute("playsinline", true);
-                video.play();
-                requestAnimationFrame(tick);
-            }).catch(function(err) {
-                console.error(err);
-                alert("カメラの起動に失敗しました。カメラのアクセス権限を確認してください。");
-            });
-        }
-
-        // 毎フレームの描画・解析処理（ループ）
+        // --- リアルタイム画像解析（ここが未結合だったため読み込みませんでした） ---
         function tick() {
             if (video.readyState === video.HAVE_ENOUGH_DATA) {
                 canvas.height = video.videoHeight;
                 canvas.width = video.videoWidth;
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 
-                // スキャンエリア制限（中央部分のみを切り出して解析）
-                const sx = canvas.width * 0.1;
-                const sy = canvas.height * 0.25;
-                const sw = canvas.width * 0.8;
-                const sh = canvas.height * 0.5;
-                
-                const imageData = ctx.getImageData(sx, sy, sw, sh);
-                
+                // スキャン有効フラグが true の時のみ、jsQRで解析を行う
                 if (isScanning) {
-                    const code = jsQR(imageData.data, sw, sh, {
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, {
                         inversionAttempts: "dontInvert",
                     });
 
+                    // QRコードが視界に入ったら、ロジック関数へデータを渡す
                     if (code && code.data) {
                         handleDetected(code.data);
                     }
                 }
             }
-            requestAnimationFrame(tick);
+            requestAnimationFrame(tick); // ループは常に回し続ける
         }
 
-        // QR検出時のバリデーションと登録
+        // --- ご提示いただいたバリデーションと登録ロジック ---
         function handleDetected(confirmedCode) {
             detectionBuffer.push(confirmedCode);
             
-            // 【修正箇所】タイポを修正し、条件判定を1行に整理
             if (detectionBuffer.length < REQUIRED_CONSISTENT_READS) return;
 
             const allMatch = detectionBuffer.every(val => val === confirmedCode);
@@ -206,6 +129,7 @@
                 return;
             }
 
+            // 確定したのでバッファクリア
             detectionBuffer = [];
 
             if (!code1) {
@@ -213,8 +137,11 @@
                 document.getElementById('code1').innerText = confirmedCode;
                 playSound(audioScan1);
                 isScanning = false;
-                // 1つ目を読んだ後、連続で2つ目に同じQRを即時誤読するのを防ぐため、2秒間スキャンを停止
-                setTimeout(() => { if (!code2) isScanning = true; }, 2000); 
+                
+                // 1つ目を読んだ後、2秒間スキャンを停止（同じQRの即時連続誤読防止）
+                setTimeout(() => { 
+                    if (!code2) isScanning = true; 
+                }, 2000); 
             } else if (!code2) {
                 code2 = confirmedCode;
                 document.getElementById('code2').innerText = confirmedCode;
@@ -245,6 +172,7 @@
                 judgeMsg.className = "mismatch";
                 playSound(audioMismatch);
             }
+            // 注: 判定終了後はスキャンが false のまま停止します。リセットボタンで再開します。
         }
 
         // リセット
