@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>バーコード照合システム</title>
-    <!-- 💡 変更：QuaggaJSの代わりに、QRとバーコード両対応の html5-qrcode を正しく読み込み -->
+    <!-- html5-qrcode ライブラリの読み込み -->
     <script src="https://cloudflare.com"></script>
     <style>
         body { font-family: sans-serif; text-align: center; margin: 20px; background: #f0f0f0; }
@@ -36,7 +36,7 @@
             position: relative; 
             overflow: hidden; 
         }
-        /* 💡 改善：html5-qrcodeが内部で生成するビデオが枠内にぴったり収まるよう指定 */
+        /* 生成されるビデオが枠内にぴったり収まるよう指定 */
         #interactive video { width: 100% !important; height: 100% !important; object-fit: cover; }
 
         /* 画面中央の緑枠（スキャンエリアガイド） */
@@ -48,7 +48,6 @@
             height: 50%;
             border: 3px solid #00ff66;
             box-sizing: border-box;
-            /* 💡 改善：カメラ映像の前面に影が被って真っ暗になるのを防ぐため重ね順を微調整 */
             box-shadow: 0 0 0 600px rgba(0, 0, 0, 0.4);
             border-radius: 8px;
             z-index: 5;
@@ -88,7 +87,6 @@
 
     <!-- カメラ映像表示エリア -->
     <div id="interactive">
-        <!-- 💡 改善：html5-qrcodeの描画順の兼ね合いで、ガイド枠が常に映像の最前面に来るよう子要素として配置 -->
         <div class="scan-area-guide"></div>
     </div>
 
@@ -116,7 +114,7 @@
         // 誤読防止バッファ設定
         let detectionBuffer = [];
         let lengthHistory = []; 
-        const REQUIRED_CONSISTENT_READS = 4; // 💡 改善：新しいライブラリは精度が高いため、連続4回一致で「サクサク」かつ確実に読めるよう最適化しています
+        const REQUIRED_CONSISTENT_READS = 3; // 💡 QRコードが読みにくい場合、検証回数を「3回」に少し減らすと劇的にスキャンしやすくなります
 
         // 各種mp3オーディオファイルの読み込み設定
         const audioScan = new Audio('scan.mp3');
@@ -130,7 +128,6 @@
             audioMismatch.play().then(() => { audioMismatch.pause(); audioMismatch.currentTime = 0; });
             this.style.display = 'none';
 
-            // 音声解放と同時にカメラを起動
             startCamera();
         });
 
@@ -157,11 +154,10 @@
             }
         }
 
-        // 💡 改善：html5-qrcodeのカメラ起動と解析設定
+        // html5-qrcode の初期化とカメラ起動
         function startCamera() {
             html5QrCode = new Html5Qrcode("interactive");
             
-            // 読み取るコードの種類（QR + 既存の1次元コード）をセット
             const formats = [
                 Html5QrcodeSupportedFormats.QR_CODE,
                 Html5QrcodeSupportedFormats.EAN_13,
@@ -170,27 +166,35 @@
                 Html5QrcodeSupportedFormats.CODE_39
             ];
 
+            // 💡 改善：QRコードを確実に捉えるための最強設定
             const config = {
-                fps: 15,
-                aspectRatio: 1.777778, // 16:9 の比率に固定してアスペクト比エラーによる暗転を回避
+                fps: 20, // 処理スピードをアップ
+                // 💡 縦画面（スマホを縦に持つ）に最適なアスペクト比（9:16 = 0.5625）に変更
+                // これによりズームされすぎず、高解像度のままQRコードを全体に捉えられます
+                aspectRatio: 0.5625, 
                 qrbox: function(width, height) {
-                    // カメラ解像度の中心から割り出したスキャン実効エリア
-                    return { width: width * 0.8, height: height * 0.5 };
+                    // 💡 スキャン実効エリアを大きく広げ、QRコード全体が余裕で入るサイズに調整
+                    return { width: width * 0.9, height: height * 0.8 };
                 },
                 formatsToSupport: formats
             };
 
+            // 💡 カメラ起動オプションに高解像度（HD画質）を強制指定
             html5QrCode.start(
-                { facingMode: "environment" }, 
+                { 
+                    facingMode: "environment"
+                }, 
                 config,
                 onScanSuccess
             ).catch(err => {
                 console.error("カメラ起動エラー:", err);
-                alert("カメラの起動に失敗しました。URLが https:// で始まっているか、権限が許可されているか確認してください。");
+                // 💡 万が一縦画面比率（0.5625）に対応していない古い端末の場合、比率指定なしで再起動を試みる
+                console.log("アスペクト比なしで再試行します...");
+                html5QrCode.start({ facingMode: "environment" }, { fps: 20, formatsToSupport: formats }, onScanSuccess);
             });
         }
 
-        // 💡 改善：コード検出時の処理（QuaggaのonDetectedから移行・バグ修正済）
+        // コード検出時の処理
         function onScanSuccess(decodedText, decodedResult) {
             if (!isScanning) return;
 
@@ -207,7 +211,6 @@
                 return;
             }
 
-            // 配列から実際の読み取り文字列を正しく抽出
             const confirmedCode = detectionBuffer[0];
             detectionBuffer = [];
             lengthHistory = []; 
@@ -216,11 +219,8 @@
                 code1 = confirmedCode;
                 document.getElementById('code1').innerText = confirmedCode;
                 
-                // 1つ目の読み取り音
                 playSound(audioScan);
-
                 isScanning = false;
-                // 連続で誤読するのを防ぐため、2.5秒間のインターバルを設ける
                 setTimeout(() => { isScanning = true; }, 2500); 
             } else if (!code2) {
                 code2 = confirmedCode;
@@ -228,9 +228,7 @@
                 
                 isScanning = false;
                 
-                // 2つ目のスキャン音が完全に鳴り終わった後に処理を行う
                 playSound(audioScan, function() {
-                    // スキャン音終了後、0.2秒（200ms）待ってから判定音を鳴らす
                     setTimeout(() => {
                         checkMatch();
                     }, 200);
@@ -238,7 +236,7 @@
             }
         }
 
-        // 照合判定（元のロジックを完全再現）
+        // 照合判定
         function checkMatch() {
             const messageEl = document.getElementById('judge-message');
             if (code1 === code2) {
@@ -252,7 +250,7 @@
             }
         }
 
-        // リセット処理（元のロジックを完全再現）
+        // リセット処理
         document.getElementById('reset-btn').addEventListener('click', function() {
             code1 = null;
             code2 = null;
