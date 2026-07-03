@@ -1,18 +1,14 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="utf-8">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>バーコード2点照合システム</title>
-    <!-- quagga.js ライブラリの読み込み -->
+    <title>バーコード照合システム</title>
+    <!-- Quagga.js ライブラリの読み込み -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
     <style>
-        body {
-            font-family: sans-serif;
-            text-align: center;
-            margin: 20px;
-            background: #f0f0f0;
-        }
+        body { font-family: sans-serif; text-align: center; margin: 20px; background: #f0f0f0; }
+        
         /* 音声有効化ボタンのスタイル */
         #start-audio-btn {
             background: #ffcc00;
@@ -23,37 +19,26 @@
             font-size: 18px;
             margin-bottom: 15px;
             animation: pulse 1.5s infinite;
-            border-radius: 5px;
-            width: 100%;
-            max-width: 500px;
         }
         @keyframes pulse {
             0% { transform: scale(1); }
             50% { transform: scale(1.03); }
             100% { transform: scale(1); }
         }
+
         /* カメラ表示エリアのスタイル設定 */
-        #interactive.viewport {
-            width: 100%;
-            max-width: 500px;
-            height: 300px;
-            margin: 0 auto;
-            background: #000;
-            position: relative;
-            overflow: hidden;
+        #interactive.viewport { 
+            width: 100%; 
+            max-width: 500px; 
+            height: 300px; 
+            margin: 0 auto; 
+            background: #000; 
+            position: relative; 
+            overflow: hidden; 
         }
-        #interactive.viewport canvas.drawingbuffer {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-        }
-        #interactive.viewport video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
+        #interactive.viewport canvas.drawingBuffer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+        #interactive.viewport video { width: 100%; height: 100%; object-fit: cover; }
+
         /* 画面中央の緑枠（スキャンエリアガイド） */
         .scan-area-guide {
             position: absolute;
@@ -68,27 +53,19 @@
             z-index: 10;
             pointer-events: none;
         }
-        /* スキャンエリア中央の横線（レーザー演出・アニメーション付き） */
+
+        /* スキャンエリア中央の横線（レーザー演出） */
         .scan-area-guide::after {
             content: '';
             position: absolute;
             left: 0;
-            top: 0;
+            top: 50%;
             width: 100%;
             height: 2px;
             background-color: #00ff66;
-            opacity: 0.8;
-            /* 2秒かけて上下に往復し続けるアニメーションを設定 */
-            animation: scanMove 2s ease-in-out infinite; 
-            /* 少し光っているようなエフェクトを追加 */
-            box-shadow: 0 0 8px #00ff66; 
+            opacity: 0.7;
         }
-        /* 線を上下に動かすアニメーションの定義 */
-        @keyframes scanMove {
-            0% { top: 5%; }
-            50% { top: 95%; }
-            100% { top: 5%; }
-        }
+
         .result-box { display: flex; justify-content: space-around; margin: 20px 0; }
         .code-display { background: white; padding: 15px; border-radius: 8px; width: 40%; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .code-display h3 { margin: 0 0 10px 0; font-size: 14px; color: #666; }
@@ -124,7 +101,7 @@
         </div>
     </div>
 
-    <div id="judge-message">1つ目をスキャンしてください</div>
+    <div id="judge-message">確認中...</div>
 
     <button id="reset-btn">リセット</button>
 
@@ -210,15 +187,6 @@
             Quagga.start();
         });
 
-        // 内蔵デバッグ枠の描画をクリアしてちらつきを防止
-        Quagga.onProcessed(function(result) {
-            const drawingCtx = Quagga.canvas.ctx.overlay;
-            const drawingCanvas = Quagga.canvas.node.overlay;
-            if (drawingCtx && drawingCanvas) {
-                drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute("width")), parseInt(drawingCanvas.getAttribute("height")));
-            }
-        });
-
         // バーコード検出時の処理
         Quagga.onDetected(function(data) {
             if (!isScanning) return;
@@ -249,7 +217,6 @@
             if (!code1) {
                 code1 = confirmedCode;
                 document.getElementById('code1').innerText = confirmedCode;
-                document.getElementById('judge-message').innerText = "2つ目をスキャンしてください";
                 
                 // 1つ目の読み取り音
                 playSound(audioScan);
@@ -259,13 +226,12 @@
             } else if (!code2) {
                 code2 = confirmedCode;
                 document.getElementById('code2').innerText = confirmedCode;
-                document.getElementById('judge-message').innerText = "照合中...";
                 
                 isScanning = false;
                 
                 // 2つ目のスキャン音が完全に鳴り終わった後に処理を行う
                 playSound(audioScan, function() {
-                    // スキャン音終了後、0.2秒（200ms）待ってから判定音を鳴らすことでiPhoneの音声詰まりを完全に防ぎます
+                    // 💡 改善：スキャン音終了後、0.2秒（200ms）待ってから判定音を鳴らすことでiPhoneの音声詰まりを完全に防ぎます
                     setTimeout(() => {
                         checkMatch();
                     }, 200);
@@ -297,7 +263,7 @@
             document.getElementById('code1').innerText = "-";
             document.getElementById('code2').innerText = "-";
             const messageEl = document.getElementById('judge-message');
-            messageEl.innerText = "1つ目をスキャンしてください";
+            messageEl.innerText = "確認中...";
             messageEl.className = "";
         });
     </script>
