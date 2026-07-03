@@ -3,87 +3,209 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>バーコード・QRハイブリッド照合</title>
-    <!-- QuaggaJS: カメラ起動用, jsQR: QR読み取り用 -->
+    <title>バーコード照合システム</title>
+    <!-- 一番最初に100%映っていたQuaggaJSをそのまま使用 -->
     <script src="https://cloudflare.com"></script>
+    <!-- QRコード用：カメラ起動には一切干渉しない軽量ライブラリ -->
     <script src="https://jsdelivr.net"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; margin: 10px; background: #f0f0f0; }
-        #interactive.viewport { width: 100%; max-width: 500px; height: 300px; margin: 0 auto; background: #000; position: relative; overflow: hidden; }
+        body { font-family: sans-serif; text-align: center; margin: 20px; background: #f0f0f0; }
+        
+        #interactive.viewport { 
+            width: 100%; 
+            max-width: 500px; 
+            height: 300px; 
+            margin: 0 auto; 
+            background: #000; 
+            position: relative; 
+            overflow: hidden; 
+        }
+        #interactive.viewport canvas.drawingBuffer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
         #interactive.viewport video { width: 100%; height: 100%; object-fit: cover; }
-        #qr-canvas { display: none; } /* 隠しCanvas */
-        .scan-area-guide { position: absolute; top: 25%; left: 10%; width: 80%; height: 50%; border: 3px solid #00ff66; box-shadow: 0 0 0 400px rgba(0, 0, 0, 0.4); z-index: 10; pointer-events: none; }
-        .result-box { margin: 10px 0; }
-        .code-value { font-weight: bold; background: white; padding: 5px; margin: 5px; }
-        #judge-message { font-size: 20px; font-weight: bold; margin: 10px; padding: 10px; }
+
+        .scan-area-guide {
+            position: absolute;
+            top: 25%;
+            left: 10%;
+            width: 80%;
+            height: 50%;
+            border: 3px solid #00ff66;
+            box-sizing: border-box;
+            box-shadow: 0 0 0 400px rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .scan-area-guide::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            width: 100%;
+            height: 2px;
+            background-color: #00ff66;
+            opacity: 0.7;
+        }
+
+        .result-box { display: flex; justify-content: space-around; margin: 20px 0; }
+        .code-display { background: white; padding: 15px; border-radius: 8px; width: 40%; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .code-display h3 { margin: 0 0 10px 0; font-size: 14px; color: #666; }
+        .code-value { font-size: 18px; font-weight: bold; min-height: 27px; word-break: break-all; }
+        #judge-message { font-size: 24px; font-weight: bold; margin-top: 20px; padding: 10px; border-radius: 8px; }
         .match { background: #d4edda; color: #155724; }
         .mismatch { background: #f8d7da; color: #721c24; }
-        button { padding: 10px; font-size: 16px; margin: 5px; }
+        button { padding: 12px 24px; font-size: 16px; margin: 10px; cursor: pointer; border-radius: 5px; border: none; background: #007aff; color: white; }
+        
+        #hidden-canvas { display: none; }
     </style>
 </head>
 <body>
-    <h3>バーコード・QR 2点照合</h3>
-    <div id="interactive" class="viewport"><div class="scan-area-guide"></div></div>
-    <canvas id="qr-canvas"></canvas>
-    <div class="result-box">
-        <div>1: <span id="code1" class="code-value">-</span></div>
-        <div>2: <span id="code2" class="code-value">-</span></div>
+
+    <h2>バーコード・QR 2点照合</h2>
+    <p>緑の枠内にバーコードまたはQRコードを合わせてください</p>
+
+    <!-- 最初と全く同じHTML構造 -->
+    <div id="interactive" class="viewport">
+        <div class="scan-area-guide"></div>
     </div>
-    <div id="judge-message">スキャン中...</div>
+    
+    <!-- QR解析用の隠しキャンバス -->
+    <canvas id="hidden-canvas"></canvas>
+
+    <div class="result-box">
+        <div class="code-display" id="box1">
+            <h3>1つ目のコード</h3>
+            <div id="code1" class="code-value">-</div>
+        </div>
+        <div class="code-display" id="box2">
+            <h3>2つ目のコード</h3>
+            <div id="code2" class="code-value">-</div>
+        </div>
+    </div>
+
+    <div id="judge-message">確認中...</div>
     <button id="reset-btn">リセット</button>
 
     <script>
-        let code1 = null, code2 = null, isScanning = true;
-        const qrCanvas = document.getElementById('qr-canvas');
-        const qrCtx = qrCanvas.getContext('2d', { willReadFrequently: true });
+        let code1 = null;
+        let code2 = null;
+        let isScanning = true;
 
-        // 1. QuaggaJSで安定してカメラを起動
+        let detectionBuffer = [];
+        let lengthHistory = []; 
+        const REQUIRED_CONSISTENT_READS = 4; // 誤読防止（少し軽めに調整）
+
+        const canvas = document.getElementById('hidden-canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        // 💡 最初と「1文字も変えていない」Quaggaの起動処理（これで絶対に映ります）
         Quagga.init({
-            inputStream: { type: "LiveStream", constraints: { facingMode: "environment" }, target: '#interactive' },
-            decoder: { readers: ["ean_reader", "code_128_reader"] }
+            inputStream: {
+                name: "Live",
+                type: "LiveStream",
+                target: document.querySelector('#interactive'),
+                constraints: {
+                    width: { min: 640, ideal: 1280, max: 1920 },
+                    height: { min: 480, ideal: 720, max: 1080 },
+                    facingMode: "environment",
+                    focusMode: "continuous"
+                },
+                area: { top: "25%", bottom: "25%", left: "10%", right: "10%" }
+            },
+            locator: { patchSize: "medium", halfSample: true },
+            decoder: {
+                readers: ["ean_reader", "code_128_reader", "code_39_reader"] 
+            },
+            locate: false
         }, function(err) {
-            if (err) return alert("カメラ起動失敗");
+            if (err) {
+                console.error(err);
+                alert("カメラの起動に失敗しました。スマホを再起動してみてください。");
+                return;
+            }
             Quagga.start();
-            requestAnimationFrame(scanQRCodeLoop); // QR解析ループ開始
+            // カメラ起動に成功したら、裏でQRコードの監視ループを開始
+            requestAnimationFrame(qrScanLoop);
         });
 
-        // 2. 映像フレームをjsQRで解析（ハイブリッド処理）
-        function scanQRCodeLoop() {
-            if (!isScanning) return requestAnimationFrame(scanQRCodeLoop);
-            const video = document.querySelector('#interactive video');
-            if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
-                qrCanvas.width = video.videoWidth; qrCanvas.height = video.videoHeight;
-                qrCtx.drawImage(video, 0, 0);
-                const imageData = qrCtx.getImageData(0, 0, qrCanvas.width, qrCanvas.height);
-                const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
-                if (qrCode) processCode(qrCode.data);
+        // 💡 バーコードが読まれた時の処理（最初のロジックそのまま）
+        Quagga.onDetected(function(data) {
+            if (!isScanning) return;
+            if (data.codeResult.error && data.codeResult.error > 0.05) return;
+            const code = data.codeResult.code;
+            if (code) handleConfirmedCode(code);
+        });
+
+        // 💡 裏側で「映っている映像」を1コマずつQR解析するループ（カメラの邪魔をしません）
+        function qrScanLoop() {
+            if (isScanning) {
+                const video = document.querySelector('#interactive video');
+                if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
+                    
+                    if (qrCode && qrCode.data) {
+                        handleConfirmedCode(qrCode.data);
+                    }
+                }
             }
-            requestAnimationFrame(scanQRCodeLoop);
+            requestAnimationFrame(qrScanLoop);
         }
 
-        // 3. Quaggaでのバーコード検知
-        Quagga.onDetected(result => { if (isScanning) processCode(result.codeResult.code); });
+        // 💡 コードが確定した時の共通処理
+        function handleConfirmedCode(code) {
+            detectionBuffer.push(code);
+            if (detectionBuffer.length < REQUIRED_CONSISTENT_READS) return;
 
-        // 4. 共通の確定処理
-        function processCode(code) {
-            if (!code || code1 === code || code2 === code) return;
-            if (!code1) { code1 = code; document.getElementById('code1').innerText = code; }
-            else if (!code2) { code2 = code; document.getElementById('code2').innerText = code; checkMatch(); }
+            const allMatch = detectionBuffer.every(val => val === code);
+            if (!allMatch) {
+                detectionBuffer.shift();
+                return;
+            }
+
+            const confirmedCode = detectionBuffer[0];
+            detectionBuffer = [];
+
+            if (!code1) {
+                code1 = confirmedCode;
+                document.getElementById('code1').innerText = confirmedCode;
+                isScanning = false;
+                setTimeout(() => { isScanning = true; }, 2000); 
+            } else if (!code2) {
+                code2 = confirmedCode;
+                document.getElementById('code2').innerText = confirmedCode;
+                isScanning = false;
+                checkMatch();
+            }
         }
 
+        // 照合判定（元の仕様）
         function checkMatch() {
-            isScanning = false;
-            const msg = document.getElementById('judge-message');
-            if (code1 === code2) { msg.innerText = "一致 (OK)"; msg.className = "match"; }
-            else { msg.innerText = "不一致 (NG)"; msg.className = "mismatch"; }
+            const messageEl = document.getElementById('judge-message');
+            if (code1 === code2) {
+                messageEl.innerText = "一致（OK）";
+                messageEl.className = "match";
+            } else {
+                messageEl.innerText = "不一致（NG）";
+                messageEl.className = "mismatch";
+            }
         }
 
-        document.getElementById('reset-btn').addEventListener('click', () => {
-            code1 = null; code2 = null; isScanning = true;
+        // リセット処理（元の仕様）
+        document.getElementById('reset-btn').addEventListener('click', function() {
+            code1 = null;
+            code2 = null;
+            isScanning = true;
+            detectionBuffer = [];
             document.getElementById('code1').innerText = "-";
             document.getElementById('code2').innerText = "-";
-            document.getElementById('judge-message').innerText = "スキャン中...";
-            document.getElementById('judge-message').className = "";
+            const messageEl = document.getElementById('judge-message');
+            messageEl.innerText = "確認中...";
+            messageEl.className = "";
         });
     </script>
 </body>
