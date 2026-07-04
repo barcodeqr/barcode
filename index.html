@@ -39,32 +39,70 @@
         #interactive.viewport canvas.drawingBuffer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
         #interactive.viewport video { width: 100%; height: 100%; object-fit: cover; }
 
-        /* 画面中央の緑枠（スキャンエリアガイド） */
-        .scan-area-guide {
-            position: absolute;
-            top: 25%;
-            left: 10%;
-            width: 80%;
-            height: 50%;
-            border: 3px solid #00ff66;
-            box-sizing: border-box;
-            box-shadow: 0 0 0 400px rgba(0, 0, 0, 0.4);
-            border-radius: 8px;
-            z-index: 10;
-            pointer-events: none;
-        }
+/* 画面中央の緑枠（スキャンエリアガイド） */
+.scan-area-guide {
+    position: absolute;
+    top: 25%;
+    left: 10%;
+    width: 80%;
+    height: 50%;
+    border: 3px solid #00ff66;
+    box-sizing: border-box;
+    box-shadow: 0 0 0 400px rgba(0, 0, 0, 0.4);
+    border-radius: 8px;
+    z-index: 10;
+    pointer-events: none;
+    
+    /* 枠外のはみ出しを隠す */
+    overflow: hidden; 
+}
 
-        /* スキャンエリア中央の横線（レーザー演出） */
-        .scan-area-guide::after {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 50%;
-            width: 100%;
-            height: 2px;
-            background-color: #00ff66;
-            opacity: 0.7;
-        }
+/* スキャンエリア中央の横線（レーザー演出） */
+.scan-area-guide::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    width: 100%;
+    /* 線の高さを少しコンパクト（30px）にして、枠内での反転をスムーズに */
+    height: 30px; 
+    
+    /* 往復（alternate）を復活させました */
+    animation: scanLine 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes scanLine {
+    /* 【上から下へ向かうとき】 */
+    0% { 
+        /* 枠の上の外側に隠す */
+        top: -30px; 
+        /* 下向きのグラデーション（残像が上につく） */
+        background: linear-gradient(to bottom, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%);
+        box-shadow: 0 3px 10px rgba(0,255,102,0.4);
+    }
+    
+    /* 折り返し直前：グラデーションの向きを維持したまま下端へ */
+    49.9% {
+        background: linear-gradient(to bottom, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%);
+    }
+
+    /* 【下から上へ向かうとき】 */
+    50% {
+        /* 枠の下の外側に隠す */
+        top: 100%;
+        /* 上向きのグラデーションに一瞬で切り替え（残像が下につく） */
+        background: linear-gradient(to top, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%);
+        box-shadow: 0 -3px 10px rgba(0,255,102,0.4);
+    }
+
+    /* 往復の終点（一番上に戻ってきたとき） */
+    100% {
+        top: -30px;
+        background: linear-gradient(to top, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%);
+        box-shadow: 0 -3px 10px rgba(0,255,102,0.4);
+    }
+}
+
+
 
         .result-box { display: flex; justify-content: space-around; margin: 20px 0; }
         .code-display { background: white; padding: 15px; border-radius: 8px; width: 40%; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -263,7 +301,7 @@
             document.getElementById('code1').innerText = "-";
             document.getElementById('code2').innerText = "-";
             const messageEl = document.getElementById('judge-message');
-            messageEl.innerText = "確認中...";
+            messageEl.innerText = "1つ目のバーコードをスキャンして下さい";
             messageEl.className = "";
         });
     </script>
