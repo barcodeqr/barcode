@@ -102,9 +102,52 @@
     }
 }
 
+/*==========================
+  NG時はスキャン枠とレーザーを赤にする
+==========================*/
 
+.scan-area-guide.ng {
+    border-color: #ff0000;
+}
 
-        .result-box { display: flex; justify-content: space-around; margin: 20px 0; }
+.scan-area-guide.ng::after {
+    animation-name: scanLineRed;
+}
+
+@keyframes scanLineRed {
+
+    0% {
+        top: -30px;
+        background: linear-gradient(to bottom,
+            rgba(255,0,0,0) 0%,
+            rgba(255,0,0,0.9) 100%);
+        box-shadow: 0 3px 10px rgba(255,0,0,0.5);
+    }
+
+    49.9% {
+        background: linear-gradient(to bottom,
+            rgba(255,0,0,0) 0%,
+            rgba(255,0,0,0.9) 100%);
+    }
+
+    50% {
+        top: 100%;
+        background: linear-gradient(to top,
+            rgba(255,0,0,0) 0%,
+            rgba(255,0,0,0.9) 100%);
+        box-shadow: 0 -3px 10px rgba(255,0,0,0.5);
+    }
+
+    100% {
+        top: -30px;
+        background: linear-gradient(to top,
+            rgba(255,0,0,0) 0%,
+            rgba(255,0,0,0.9) 100%);
+        box-shadow: 0 -3px 10px rgba(255,0,0,0.5);
+    }
+}
+
+.result-box { display: flex; justify-content: space-around; margin: 20px 0; }
 .code-display {
     background: white;
     padding: 15px;
@@ -312,6 +355,7 @@ function checkMatch() {
     const messageEl = document.getElementById('judge-message');
     const box1 = document.getElementById('box1');
     const box2 = document.getElementById('box2');
+    const scanGuide = document.querySelector('.scan-area-guide');
 
     if (code1 === code2) {
 
@@ -320,6 +364,9 @@ function checkMatch() {
 
         box1.className = "code-display match";
         box2.className = "code-display match";
+
+        // 枠・レーザーを緑に戻す
+        scanGuide.classList.remove("ng");
 
         playSound(audioMatch);
 
@@ -330,6 +377,9 @@ function checkMatch() {
 
         box1.className = "code-display mismatch";
         box2.className = "code-display mismatch";
+
+        // 枠・レーザーを赤にする
+        scanGuide.classList.add("ng");
 
         playSound(audioMismatch);
     }
@@ -350,6 +400,10 @@ messageEl.className = "";
 
 document.getElementById('box1').className = "code-display";
 document.getElementById('box2').className = "code-display";
-});    </script>
+
+// 枠・レーザーを緑に戻す
+document.querySelector('.scan-area-guide').classList.remove("ng");
+});
+</script>
 </body>
 </html>
