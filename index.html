@@ -49,7 +49,7 @@
     border: 3px solid #00ff66;
     box-sizing: border-box;
     box-shadow: 0 0 0 400px rgba(0, 0, 0, 0.4);
-    border-radius: 8px;
+    border-radius: 0;
     z-index: 10;
     pointer-events: none;
     
@@ -105,13 +105,43 @@
 
 
         .result-box { display: flex; justify-content: space-around; margin: 20px 0; }
-        .code-display { background: white; padding: 15px; border-radius: 8px; width: 40%; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .code-display h3 { margin: 0 0 10px 0; font-size: 14px; color: #666; }
+.code-display {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    width: 40%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+
+    /* ←この2行を追加 */
+    border: 2px solid transparent;
+    transition: background-color 0.25s ease,
+                border-color 0.25s ease,
+                transform 0.15s ease;
+}       
+.code-display.match {
+    background: #d4edda;
+    border-color: #28a745;
+    transform: scale(1.03);
+}
+
+.code-display.mismatch {
+    background: #f8d7da;
+    border-color: #dc3545;
+    transform: scale(1.03);
+}
+
+ .code-display h3 { margin: 0 0 10px 0; font-size: 14px; color: #666; }
+
         .code-value { font-size: 18px; font-weight: bold; min-height: 27px; word-break: break-all; }
+
         #judge-message { font-size: 24px; font-weight: bold; margin-top: 20px; padding: 10px; border-radius: 8px; }
+
         .match { background: #d4edda; color: #155724; }
+
         .mismatch { background: #f8d7da; color: #721c24; }
+
         button { padding: 12px 24px; font-size: 16px; margin: 10px; cursor: pointer; border-radius: 5px; border: none; background: #007aff; color: white; }
+
     </style>
 </head>
 <body>
@@ -278,21 +308,35 @@
         });
 
         // 照合判定
-        function checkMatch() {
-            const messageEl = document.getElementById('judge-message');
-            if (code1 === code2) {
-                messageEl.innerText = "一致（OK）";
-                messageEl.className = "match";
-                playSound(audioMatch);
-            } else {
-                messageEl.innerText = "不一致（NG）";
-                messageEl.className = "mismatch";
-                playSound(audioMismatch);
-            }
-        }
+function checkMatch() {
+    const messageEl = document.getElementById('judge-message');
+    const box1 = document.getElementById('box1');
+    const box2 = document.getElementById('box2');
 
-        // リセット処理
-        document.getElementById('reset-btn').addEventListener('click', function() {
+    if (code1 === code2) {
+
+        messageEl.innerText = "一致（OK）";
+        messageEl.className = "match";
+
+        box1.className = "code-display match";
+        box2.className = "code-display match";
+
+        playSound(audioMatch);
+
+    } else {
+
+        messageEl.innerText = "不一致（NG）";
+        messageEl.className = "mismatch";
+
+        box1.className = "code-display mismatch";
+        box2.className = "code-display mismatch";
+
+        playSound(audioMismatch);
+    }
+}
+
+// ←ここからすぐリセット処理
+document.getElementById('reset-btn').addEventListener('click', function() {
             code1 = null;
             code2 = null;
             isScanning = true;
@@ -301,9 +345,11 @@
             document.getElementById('code1').innerText = "-";
             document.getElementById('code2').innerText = "-";
             const messageEl = document.getElementById('judge-message');
-            messageEl.innerText = "スキャンして下さい";
-            messageEl.className = "";
-        });
-    </script>
+messageEl.innerText = "スキャンして下さい";
+messageEl.className = "";
+
+document.getElementById('box1').className = "code-display";
+document.getElementById('box2').className = "code-display";
+});    </script>
 </body>
 </html>
