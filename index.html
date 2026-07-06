@@ -244,6 +244,38 @@ button {
     font-weight: bold;
     border-radius: 10px;
 }
+/* ==========================
+   飛んでいくバーコード文字
+========================== */
+
+#flying-code{
+
+    position:fixed;
+
+    left:50%;
+    top:45%;
+
+    font-size:42px;
+    font-weight:bold;
+
+    color:#00ff66;
+
+    text-shadow:
+        0 0 10px #00ff66,
+        0 0 20px #00ff66;
+
+    opacity:0;
+
+    pointer-events:none;
+
+    z-index:9999;
+
+    transition:
+        transform .8s ease,
+        opacity .8s ease;
+}
+
+
     </style>
 </head>
 <body>
@@ -277,7 +309,7 @@ button {
     </div>
 
     <button id="reset-btn">リセット</button>
-
+    <div id="flying-code"></div>
     <script>
         let code1 = null;
         let code2 = null;
@@ -323,6 +355,35 @@ button {
                 if (callback) callback();
             }
         }
+
+function flyBarcodeText(text, targetId){
+
+    const fly = document.getElementById("flying-code");
+    const target = document.getElementById(targetId);
+
+    fly.innerText = text;
+
+    const rect = target.getBoundingClientRect();
+
+    // 開始位置
+    fly.style.left = "50%";
+    fly.style.top = "45%";
+
+    fly.style.opacity = "1";
+    fly.style.transition = "none";
+    fly.style.transform = "translate(-50%,-50%) scale(1)";
+
+    void fly.offsetWidth;
+
+    // 終了位置
+    fly.style.transition = "all .8s ease";
+
+    fly.style.left = rect.left + rect.width/2 + "px";
+    fly.style.top  = rect.top  + rect.height/2 + "px";
+
+    fly.style.transform = "translate(-50%,-50%) scale(.25)";
+    fly.style.opacity = "0";
+}
 
         // Quaggaの初期設定
         Quagga.init({
@@ -387,29 +448,49 @@ button {
             detectionBuffer = [];
             lengthHistory = []; 
 
-            if (!code1) {
-                code1 = confirmedCode;
-                document.getElementById('code1').innerText = confirmedCode;
-                
-                // 1つ目の読み取り音
-                playSound(audioScan);
+if (!code1) {
 
-                isScanning = false;
-                setTimeout(() => { isScanning = true; }, 2000); 
-            } else if (!code2) {
-                code2 = confirmedCode;
-                document.getElementById('code2').innerText = confirmedCode;
-                
-                isScanning = false;
-                
-                // 2つ目のスキャン音が完全に鳴り終わった後に処理を行う
-                playSound(audioScan, function() {
-                    // 💡 改善：スキャン音終了後、0.2秒（200ms）待ってから判定音を鳴らすことでiPhoneの音声詰まりを完全に防ぎます
-                    setTimeout(() => {
-                        checkMatch();
-                    }, 200);
-                });
-            }
+    code1 = confirmedCode;
+
+    playSound(audioScan);
+
+    flyBarcodeText(confirmedCode, "box1");
+
+    setTimeout(() => {
+
+        document.getElementById("code1").innerText = confirmedCode;
+
+    },800);
+
+    isScanning = false;
+
+    setTimeout(() => {
+
+        isScanning = true;
+
+    },2000);
+
+}
+else if (!code2) {
+
+    // ★これを追加
+    code2 = confirmedCode;
+
+    playSound(audioScan);
+
+    flyBarcodeText(confirmedCode, "box2");
+
+    setTimeout(() => {
+
+        document.getElementById("code2").innerText = confirmedCode;
+
+        checkMatch();
+
+    }, 800);
+
+    isScanning = false;
+
+}
         });
 
         // 照合判定
