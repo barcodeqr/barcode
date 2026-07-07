@@ -275,9 +275,111 @@ button {
         opacity .8s ease;
 }
 
+/*==========================
+  履歴ボタン
+==========================*/
 
-    </style>
+#history-btn,
+#csv-btn{
+    width:220px;
+    height:60px;
+    font-size:22px;
+    font-weight:bold;
+    border-radius:10px;
+}
+
+#clear-history-btn{
+
+    width:220px;
+    height:60px;
+
+    font-size:22px;
+
+    font-weight:bold;
+
+    border-radius:10px;
+
+    background:#d9534f;
+
+    color:#fff;
+
+}
+
+#clear-history-btn:hover{
+
+    background:#c9302c;
+
+}
+
+/*==========================
+  履歴表示エリア
+==========================*/
+
+#history-area{
+
+    display:none;
+
+    width:90%;
+    max-width:700px;
+
+    margin:20px auto;
+
+    background:#ffffff;
+
+    border:1px solid #cccccc;
+
+    border-radius:10px;
+
+    padding:15px;
+
+    max-height:300px;
+
+    overflow-y:auto;
+
+    text-align:left;
+
+    box-shadow:0 2px 8px rgba(0,0,0,.15);
+
+    font-size:15px;
+
+    line-height:1.6;
+
+}
+
+.history-item{
+
+    border-bottom:1px solid #dddddd;
+
+    padding:8px 0;
+
+}
+
+.history-item:last-child{
+
+    border-bottom:none;
+
+}
+
+.history-ok{
+
+    color:#008800;
+
+    font-weight:bold;
+
+}
+
+.history-ng{
+
+    color:#cc0000;
+
+    font-weight:bold;
+
+}
+
+</style>
+
 </head>
+
 <body>
 
     <h2>バーコード2点照合</h2>
@@ -309,8 +411,14 @@ button {
     </div>
 
     <button id="reset-btn">リセット</button>
+    <button id="history-btn">履歴表示</button>
+    <button id="csv-btn">CSV出力</button>
+    <button id="clear-history-btn">履歴全削除</button>
+
+    <div id="history-area"></div>
     <div id="flying-code"></div>
-    <script>
+
+ <script>
         let code1 = null;
         let code2 = null;
         let isScanning = true;
@@ -531,6 +639,8 @@ function checkMatch() {
 
         playSound(audioMatch);
 
+saveHistory(code1, code2, "OK");
+
     } else {
 
         result.className = "ng";
@@ -543,7 +653,37 @@ function checkMatch() {
         scanGuide.classList.add("ng");
 
         playSound(audioMismatch);
+
+saveHistory(code1, code2, "NG");
     }
+}
+
+//=============================
+// 履歴保存
+//=============================
+function saveHistory(code1, code2, result){
+
+    const history = JSON.parse(localStorage.getItem("barcodeHistory") || "[]");
+
+    history.unshift({
+
+        datetime: new Date().toLocaleString("ja-JP"),
+
+        code1: code1,
+
+        code2: code2,
+
+        result: result
+
+    });
+
+    // 最大500件保存
+    if(history.length > 500){
+        history.pop();
+    }
+
+    localStorage.setItem("barcodeHistory", JSON.stringify(history));
+
 }
 
 // ←ここからすぐリセット処理
@@ -572,6 +712,105 @@ document.getElementById('reset-btn').addEventListener('click', function () {
     document.querySelector(".scan-area-guide").classList.remove("ng");
 
 });
+
+
+//=============================
+// 履歴表示
+//=============================
+
+document.getElementById("history-btn").addEventListener("click",function(){
+
+    const area=document.getElementById("history-area");
+
+    const history=JSON.parse(localStorage.getItem("barcodeHistory") || "[]");
+
+    if(area.style.display==="none"){
+
+        area.style.display="block";
+
+        let html="";
+
+history.forEach(item=>{
+
+    const resultClass =
+        item.result === "OK"
+        ? "history-ok"
+        : "history-ng";
+
+    html +=
+    "<div class='history-item'>"
+    +"<b>"+item.datetime+"</b><br>"
+    +"① "+item.code1+"<br>"
+    +"② "+item.code2+"<br>"
+    +"結果：<span class='"+resultClass+"'>"+item.result+"</span>"
+    +"</div>";
+
+});
+
+        if(html===""){
+            html="履歴はありません";
+        }
+
+        area.innerHTML=html;
+
+    }else{
+
+        area.style.display="none";
+
+    }
+
+});
+
+//=============================
+// CSV出力
+//=============================
+
+document.getElementById("csv-btn").addEventListener("click",function(){
+
+    const history=JSON.parse(localStorage.getItem("barcodeHistory") || "[]");
+
+    let csv="日時,バーコード1,バーコード2,結果\n";
+
+    history.forEach(item=>{
+
+        csv += `"${item.datetime}","${item.code1}","${item.code2}","${item.result}"\n`;
+
+    });
+
+    const bom=new Uint8Array([0xEF,0xBB,0xBF]);
+
+    const blob=new Blob([bom,csv],{type:"text/csv"});
+
+    const a=document.createElement("a");
+
+    a.href=URL.createObjectURL(blob);
+
+    a.download="barcode_history.csv";
+
+    a.click();
+
+});
+
+//=============================
+// 履歴全削除
+//=============================
+
+document.getElementById("clear-history-btn").addEventListener("click",function(){
+
+    if(confirm("保存されている履歴をすべて削除します。\nよろしいですか？")){
+
+        localStorage.removeItem("barcodeHistory");
+
+        document.getElementById("history-area").innerHTML="";
+
+        document.getElementById("history-area").style.display="none";
+
+        alert("履歴を削除しました。");
+
+    }
+
+});
+
 </script>
 </body>
 </html>
