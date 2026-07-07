@@ -326,12 +326,26 @@ button {
         const audioMismatch = new Audio('boo.mp3');
 
         // iPhone（iOS）の制限を突破するための処理
-        document.getElementById('start-audio-btn').addEventListener('click', function() {
-            audioScan.play().then(() => { audioScan.pause(); audioScan.currentTime = 0; });
-            audioMatch.play().then(() => { audioMatch.pause(); audioMatch.currentTime = 0; });
-            audioMismatch.play().then(() => { audioMismatch.pause(); audioMismatch.currentTime = 0; });
-            this.style.display = 'none';
-        });
+document.getElementById('start-audio-btn').addEventListener('click', function () {
+
+    audioScan.play().then(() => {
+        audioScan.pause();
+        audioScan.currentTime = 0;
+    });
+
+    audioMatch.play().then(() => {
+        audioMatch.pause();
+        audioMatch.currentTime = 0;
+    });
+
+    audioMismatch.play().then(() => {
+        audioMismatch.pause();
+        audioMismatch.currentTime = 0;
+    });
+
+    this.style.display = "none";
+
+});
 
         // 音声再生用の共通関数
         function playSound(audioObject, callback) {
@@ -366,8 +380,11 @@ function flyBarcodeText(text, targetId){
     const rect = target.getBoundingClientRect();
 
     // 開始位置
-    fly.style.left = "50%";
-    fly.style.top = "45%";
+const guide = document.querySelector(".scan-area-guide");
+const guideRect = guide.getBoundingClientRect();
+
+fly.style.left = (guideRect.left + guideRect.width / 2) + "px";
+fly.style.top  = (guideRect.top + guideRect.height / 2) + "px";
 
     fly.style.opacity = "1";
     fly.style.transition = "none";
