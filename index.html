@@ -840,22 +840,45 @@ document.getElementById("csv-btn").addEventListener("click",function(){
 });
 
 //=============================
-// 履歴全削除
+// 履歴全削除（iPad Safari対応版）
 //=============================
 
-document.getElementById("clear-history-btn").addEventListener("click",function(){
+document.getElementById("clear-history-btn").addEventListener("click", function () {
 
-    if(confirm("保存されている履歴をすべて削除します。\nよろしいですか？")){
-
-        localStorage.removeItem("barcodeHistory");
-
-        document.getElementById("history-area").innerHTML="";
-
-        document.getElementById("history-area").style.display="none";
-
-        alert("履歴を削除しました。");
-
+    if (!confirm("保存されている履歴をすべて削除します。\nよろしいですか？")) {
+        return;
     }
+
+    // 履歴削除
+    localStorage.removeItem("barcodeHistory");
+
+    // 履歴表示を閉じる
+    const historyArea = document.getElementById("history-area");
+    historyArea.innerHTML = "";
+    historyArea.style.display = "none";
+
+    // Safari対策（カメラを再開）
+    try {
+        Quagga.stop();
+
+        setTimeout(function () {
+            Quagga.start();
+        }, 300);
+
+    } catch (e) {
+        console.log(e);
+    }
+
+    // alertは使わず画面に通知
+    const result = document.getElementById("scan-result");
+
+    result.className = "ok";
+    result.innerText = "履歴削除";
+
+    setTimeout(function () {
+        result.className = "";
+        result.innerText = "";
+    }, 1500);
 
 });
 
