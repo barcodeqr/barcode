@@ -840,7 +840,7 @@ document.getElementById("csv-btn").addEventListener("click",function(){
 });
 
 //=============================
-// 履歴全削除（iPad Safari対応版）
+// 履歴全削除
 //=============================
 
 document.getElementById("clear-history-btn").addEventListener("click", function () {
@@ -849,36 +849,13 @@ document.getElementById("clear-history-btn").addEventListener("click", function 
         return;
     }
 
-    // 履歴削除
     localStorage.removeItem("barcodeHistory");
 
-    // 履歴表示を閉じる
     const historyArea = document.getElementById("history-area");
     historyArea.innerHTML = "";
     historyArea.style.display = "none";
 
-    // Safari対策（カメラを再開）
-    try {
-        Quagga.stop();
-
-        setTimeout(function () {
-            Quagga.start();
-        }, 300);
-
-    } catch (e) {
-        console.log(e);
-    }
-
-    // alertは使わず画面に通知
-    const result = document.getElementById("scan-result");
-
-    result.className = "ok";
-    result.innerText = "履歴削除";
-
-    setTimeout(function () {
-        result.className = "";
-        result.innerText = "";
-    }, 1500);
+    // alertもQuagga.stop()も使わない
 
 });
 
