@@ -422,6 +422,42 @@ button:active{
 
 }
 
+/*==========================
+  履歴の色
+==========================*/
+
+.history-item.ok{
+    background:#eaf8ea;
+    border-left:6px solid #28a745;
+}
+
+.history-item.ng{
+    background:#fdeaea;
+    border-left:6px solid #dc3545;
+}
+
+/*==========================
+  新しい履歴を光らせる
+==========================*/
+
+.history-item.new{
+
+    animation:newHistoryFlash 1s;
+
+}
+
+@keyframes newHistoryFlash{
+
+    0%{
+        background:#fff59d;
+    }
+
+    100%{
+        background:inherit;
+    }
+
+}
+
 </style>
 
 </head>
@@ -712,15 +748,10 @@ function saveHistory(code1, code2, result){
     const history = JSON.parse(localStorage.getItem("barcodeHistory") || "[]");
 
     history.unshift({
-
         datetime: new Date().toLocaleString("ja-JP"),
-
         code1: code1,
-
         code2: code2,
-
         result: result
-
     });
 
     // 最大500件保存
@@ -730,9 +761,13 @@ function saveHistory(code1, code2, result){
 
     localStorage.setItem("barcodeHistory", JSON.stringify(history));
 
+    // 履歴表示中なら自動更新
+    updateHistoryDisplay();
 }
 
-// ←ここからすぐリセット処理
+//=============================
+// リセット処理
+//=============================
 document.getElementById('reset-btn').addEventListener('click', function () {
 
     code1 = null;
@@ -764,50 +799,72 @@ document.getElementById('reset-btn').addEventListener('click', function () {
 // 履歴表示
 //=============================
 
-document.getElementById("history-btn").addEventListener("click",function(){
+document.getElementById("history-btn").addEventListener("click", function(){
 
     const area = document.getElementById("history-area");
 
-    const history = JSON.parse(localStorage.getItem("barcodeHistory") || "[]");
-
-    const isHidden = getComputedStyle(area).display === "none";
-
-    if (isHidden) {
+    if(getComputedStyle(area).display === "none"){
 
         area.style.display = "block";
+        updateHistoryDisplay();
 
-        let html = "";
+    }else{
 
-        history.forEach(item => {
-
-            const resultClass =
-                item.result === "OK"
-                ? "history-ok"
-                : "history-ng";
-
-            html +=
-            "<div class='history-item'>"
-            +"<b>"+item.datetime+"</b><br>"
-            +"① "+item.code1+"<br>"
-            +"② "+item.code2+"<br>"
-            +"結果：<span class='"+resultClass+"'>"+item.result+"</span>"
-            +"</div>";
-
-        });
-
-        if(html===""){
-            html="履歴はありません";
-        }
-
-        area.innerHTML=html;
-
-    } else {
-
-        area.style.display="none";
+        area.style.display = "none";
 
     }
 
 });
+
+function updateHistoryDisplay(){
+
+    const area = document.getElementById("history-area");
+
+    // 閉じているときは更新しない
+    if(getComputedStyle(area).display === "none"){
+        return;
+    }
+
+    const history = JSON.parse(localStorage.getItem("barcodeHistory") || "[]");
+
+    let html = "";
+
+history.forEach((item,index) => {
+
+    const resultClass =
+        item.result === "OK"
+        ? "history-ok"
+        : "history-ng";
+
+    const itemClass =
+        item.result === "OK"
+        ? "ok"
+        : "ng";
+
+    const newClass =
+        index === 0
+        ? "new"
+        : "";
+
+    html +=
+        "<div class='history-item " + itemClass + " " + newClass + "'>"
+        + "<b>" + item.datetime + "</b><br>"
+        + "① " + item.code1 + "<br>"
+        + "② " + item.code2 + "<br>"
+        + "結果：<span class='" + resultClass + "'>" + item.result + "</span>"
+        + "</div>";
+});
+
+    if(history.length === 0){
+        html = "履歴はありません";
+    }
+
+    area.innerHTML = html;
+
+    // 一番上へスクロール
+    area.scrollTop = 0;
+
+}
 
 //=============================
 // CSV出力
@@ -843,19 +900,15 @@ document.getElementById("csv-btn").addEventListener("click",function(){
 // 履歴全削除
 //=============================
 
-document.getElementById("clear-history-btn").addEventListener("click",function(){
+document.getElementById("clear-history-btn").addEventListener("click", function(){
 
-    if(confirm("保存されている履歴をすべて削除します。\nよろしいですか？")){
-
-        localStorage.removeItem("barcodeHistory");
-
-        document.getElementById("history-area").innerHTML="";
-
-        document.getElementById("history-area").style.display="none";
-
-        alert("履歴を削除しました。");
-
+    if(!confirm("保存されている履歴をすべて削除します。\nよろしいですか？")){
+        return;
     }
+
+    localStorage.removeItem("barcodeHistory");
+
+    updateHistoryDisplay();
 
 });
 
