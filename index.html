@@ -766,32 +766,34 @@ document.getElementById('reset-btn').addEventListener('click', function () {
 
 document.getElementById("history-btn").addEventListener("click",function(){
 
-    const area=document.getElementById("history-area");
+    const area = document.getElementById("history-area");
 
-    const history=JSON.parse(localStorage.getItem("barcodeHistory") || "[]");
+    const history = JSON.parse(localStorage.getItem("barcodeHistory") || "[]");
 
-    if(area.style.display==="none"){
+    const isHidden = getComputedStyle(area).display === "none";
 
-        area.style.display="block";
+    if (isHidden) {
 
-        let html="";
+        area.style.display = "block";
 
-history.forEach(item=>{
+        let html = "";
 
-    const resultClass =
-        item.result === "OK"
-        ? "history-ok"
-        : "history-ng";
+        history.forEach(item => {
 
-    html +=
-    "<div class='history-item'>"
-    +"<b>"+item.datetime+"</b><br>"
-    +"① "+item.code1+"<br>"
-    +"② "+item.code2+"<br>"
-    +"結果：<span class='"+resultClass+"'>"+item.result+"</span>"
-    +"</div>";
+            const resultClass =
+                item.result === "OK"
+                ? "history-ok"
+                : "history-ng";
 
-});
+            html +=
+            "<div class='history-item'>"
+            +"<b>"+item.datetime+"</b><br>"
+            +"① "+item.code1+"<br>"
+            +"② "+item.code2+"<br>"
+            +"結果：<span class='"+resultClass+"'>"+item.result+"</span>"
+            +"</div>";
+
+        });
 
         if(html===""){
             html="履歴はありません";
@@ -799,7 +801,7 @@ history.forEach(item=>{
 
         area.innerHTML=html;
 
-    }else{
+    } else {
 
         area.style.display="none";
 
