@@ -457,14 +457,65 @@ button:active{
     }
 
 }
+/*=============================
+  タイトル
+=============================*/
 
+.title-box{
+    width:100%;
+    max-width:520px;
+    margin:15px auto 20px;
+    padding:18px 10px;
+    text-align:center;
+
+    color:#fff;
+
+    background:linear-gradient(135deg,#009688,#00b894);
+
+    border-radius:14px;
+
+    box-shadow:
+        0 5px 15px rgba(0,0,0,0.25);
+
+    border:2px solid rgba(255,255,255,0.25);
+}
+
+.title-main{
+    font-size:28px;
+    font-weight:bold;
+    letter-spacing:2px;
+    text-shadow:1px 1px 2px rgba(0,0,0,0.3);
+}
+
+.title-sub{
+    margin-top:6px;
+    font-size:14px;
+    letter-spacing:3px;
+    color:rgba(255,255,255,0.9);
+}
+@media (max-width:600px){
+
+    .title-main{
+        font-size:22px;
+        letter-spacing:1px;
+    }
+
+    .title-sub{
+        font-size:12px;
+        letter-spacing:2px;
+    }
+
+}        
 </style>
 
 </head>
 
 <body>
 
-    <h2>バーコード2点照合 ver.2</h2>
+    <div class="title-box">
+    <div class="title-main">💊 バーコード 2点照合システム</div>
+    <div class="title-sub">Barcode Matching System</div>
+</div>
     
     <!-- iPhone用の音声解放ボタンを追加 -->
     <button id="start-audio-btn">最初にタップしてスキャン開始</button>
