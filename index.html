@@ -528,21 +528,18 @@ button:active{
 
 .title-box{
     width:100%;
-    max-width:520px;
+    max-width:500px;      /* 520 → 500 */
     margin:15px auto 20px;
     padding:18px 10px;
+
+    box-sizing:border-box; /* 追加 */
+
     text-align:center;
-
     color:#fff;
-
     background:linear-gradient(135deg,#009688,#00b894);
-
     border-radius:14px;
-
-    box-shadow:
-        0 5px 15px rgba(0,0,0,0.25);
-
     border:2px solid rgba(255,255,255,0.25);
+    box-shadow:0 5px 15px rgba(0,0,0,0.25);
 }
 
 .title-main{
