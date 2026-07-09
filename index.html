@@ -902,20 +902,9 @@ document.getElementById("csv-btn").addEventListener("click",function(){
 
 document.getElementById("clear-history-btn").addEventListener("click", function(){
 
-    if(!window.confirm("保存されている履歴をすべて削除します。\nよろしいですか？")){
-        return;
-    }
-
     localStorage.removeItem("barcodeHistory");
 
     updateHistoryDisplay();
-
-    // iPad対策
-    setTimeout(function(){
-        Quagga.stop();
-
-        Quagga.start();
-    },300);
 
 });
      
