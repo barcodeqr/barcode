@@ -6,7 +6,7 @@
     <link rel="apple-touch-icon" href="icon.png">
     <meta name="theme-color" content="#00aa44">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>バーコード照合システム</title>
+    <title>バーコード照合システム ver.1</title>
     <!-- Quagga.js ライブラリの読み込み -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
     <style>
@@ -902,7 +902,7 @@ document.getElementById("csv-btn").addEventListener("click",function(){
 
 document.getElementById("clear-history-btn").addEventListener("click", function(){
 
-    if(!confirm("保存されている履歴をすべて削除します。\nよろしいですか？")){
+    if(!window.confirm("保存されている履歴をすべて削除します。\nよろしいですか？")){
         return;
     }
 
@@ -910,8 +910,15 @@ document.getElementById("clear-history-btn").addEventListener("click", function(
 
     updateHistoryDisplay();
 
-});
+    // iPad対策
+    setTimeout(function(){
+        Quagga.stop();
 
+        Quagga.start();
+    },300);
+
+});
+     
 </script>
 </body>
 </html>
