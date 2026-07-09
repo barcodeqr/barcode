@@ -283,24 +283,30 @@ button:active{
     font-weight:bold;
     border-radius:10px;
 
-    /* ↓追加 */
-    background:linear-gradient(135deg,#ff9800,#f57c00);
-    color:white;
-    border:none;
+    color:#fff;
+
+    background:linear-gradient(to bottom,#ffb74d 0%,#fb8c00 50%,#ef6c00 100%);
+    border:1px solid #d2691e;
+
+    box-shadow:
+        inset 0 2px 0 rgba(255,255,255,0.5),
+        inset 0 -2px 0 rgba(0,0,0,0.15),
+        0 4px 8px rgba(0,0,0,0.3);
+
     cursor:pointer;
-    box-shadow:0 4px 10px rgba(0,0,0,0.25);
-    transition:all 0.2s ease;
+    transition:0.15s;
 }
 
 #reset-btn:hover{
-    background:linear-gradient(135deg,#ffb74d,#fb8c00);
-    transform:translateY(-2px);
-    box-shadow:0 6px 14px rgba(0,0,0,0.3);
+    filter:brightness(1.08);
 }
 
 #reset-btn:active{
-    transform:translateY(1px);
-    box-shadow:0 2px 6px rgba(0,0,0,0.25);
+    transform:translateY(2px);
+
+    box-shadow:
+        inset 0 2px 5px rgba(0,0,0,0.25),
+        0 2px 4px rgba(0,0,0,0.2);
 }
 /* ==========================
    飛んでいくバーコード文字
