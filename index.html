@@ -1219,8 +1219,8 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
     const sh = guideRect.height * vh / videoRect.height;
 
 // OCR用Canvas
-    canvas.width = sw;
-    canvas.height = sh;
+    canvas.width = sw * 2;
+    canvas.height = sh * 2;
 
     // 表示サイズ
     canvas.style.maxWidth = "400px";
@@ -1255,7 +1255,7 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
             data[i+1] * 0.587 +
             data[i+2] * 0.114;
 
-        const value = gray > 120 ? 255 : 0;
+        const value = gray > 150 ? 255 : 0;
 
         data[i] = value;
         data[i+1] = value;
@@ -1269,10 +1269,10 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
 
     const result = await Tesseract.recognize(
     canvas,
-    "jpn+eng",
+    "jpn",
     {
         logger: m => console.log(m),
-        tessedit_pageseg_mode: 6
+        tessedit_pageseg_mode: 7
     }
 );
 
