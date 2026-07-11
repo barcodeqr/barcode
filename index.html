@@ -860,10 +860,13 @@ fly.style.top  = (guideRect.top + guideRect.height / 2) + "px";
 
      });
 
- // バーコード検出時の処理
-        Quagga.onDetected(function(data) {
-            if (!isScanning) return;
+    // バーコード検出時の処理
+    Quagga.onDetected(function(data) {
 
+    // OCRモードではバーコードを無視
+    if (currentMode !== "barcode") return;
+
+    if (!isScanning) return;
             if (data.codeResult.error && data.codeResult.error > 0.05) return;
 
             const code = data.codeResult.code;
@@ -1467,7 +1470,6 @@ this.disabled = false;
 this.innerText = "文字を読み取る";
 
 });
-
 
 </script>
 
