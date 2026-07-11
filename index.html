@@ -471,6 +471,28 @@ button:active{
 }
 
 /*==========================
+  OCRボタン
+==========================*/
+
+#ocr-read-btn{
+
+    display:none;
+
+    width:260px;
+
+    height:65px;
+
+    margin:18px auto;
+
+    font-size:24px;
+
+    font-weight:bold;
+
+    background:linear-gradient(to bottom,#4CAF50,#2E7D32);
+
+}
+
+/*==========================
   履歴表示エリア
 ==========================*/
 
@@ -677,6 +699,10 @@ button:active{
     </div>
 
 </div>
+    <button id="ocr-read-btn" style="display:none;">
+        文字を読み取る
+    </button>
+
     <div class="result-box">
         <div class="code-display" id="box1">
             <h3>1つ目のバーコード</h3>
@@ -692,7 +718,6 @@ button:active{
     <button id="history-btn">履歴表示</button>
     <button id="csv-btn">CSV出力</button>
     <button id="clear-history-btn">履歴全削除</button>
-    <button id="ocr-read-btn" style="display:none;">文字を読み取る</button>
 
     <div id="history-area"></div>
     <div id="flying-code"></div>
@@ -1010,6 +1035,17 @@ document.getElementById('reset-btn').addEventListener('click', function () {
     // スキャン枠を緑に戻す
     document.querySelector(".scan-area-guide").classList.remove("ng");
 
+    // =============================
+    // OCR画像を消す
+    // =============================
+    const ocrCanvas = document.getElementById("ocr-canvas");
+    const ocrCtx = ocrCanvas.getContext("2d");
+
+    ocrCtx.clearRect(0, 0, ocrCanvas.width, ocrCanvas.height);
+    ocrCanvas.style.display = "none";
+    ocrCanvas.width = 0;
+    ocrCanvas.height = 0;
+
 });
 
 
@@ -1137,6 +1173,8 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
     // OCRボタンを隠す
     document.getElementById("ocr-read-btn").style.display = "none";
 
+    document.body.style.paddingBottom = "0px";
+
     // ボタン表示切替
     this.classList.add("mode-active");
     document.getElementById("ocr-mode-btn").classList.remove("mode-active");
@@ -1162,7 +1200,9 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
 
     currentMode="ocr";
 
-    document.getElementById("ocr-read-btn").style.display="inline-block";
+    document.getElementById("ocr-read-btn").style.display="block";
+
+    document.body.style.paddingBottom = "90px";
 
     this.classList.add("mode-active");
     document.getElementById("barcode-mode-btn").classList.remove("mode-active");
@@ -1219,8 +1259,8 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
     const sh = guideRect.height * vh / videoRect.height;
 
 // OCR用Canvas
-    canvas.width = sw * 2;
-    canvas.height = sh * 2;
+    canvas.width = sw;
+    canvas.height = sh;
 
     // 表示サイズ
     canvas.style.maxWidth = "400px";
@@ -1243,6 +1283,12 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
         canvas.height
     );
 
+
+    // 少しシャープにする
+    ctx.filter = "brightness(115%) contrast(135%)";
+    ctx.drawImage(canvas,0,0);
+    ctx.filter = "none";
+
     // ===== OCR用画像前処理 =====
 
     let imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
@@ -1255,7 +1301,7 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
             data[i+1] * 0.587 +
             data[i+2] * 0.114;
 
-        const value = gray > 150 ? 255 : 0;
+        const value = gray > 165 ? 255 : 0;
 
         data[i] = value;
         data[i+1] = value;
@@ -1265,18 +1311,50 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
 
     ctx.putImageData(imageData,0,0);
 
-// ===== OCR開始 =====
+    // OCRしやすいように2倍へ拡大
+    const tempCanvas = document.createElement("canvas");
+    const tempCtx = tempCanvas.getContext("2d");
+
+    tempCanvas.width = canvas.width * 2;
+    tempCanvas.height = canvas.height * 2;
+
+    tempCtx.imageSmoothingEnabled = false;
+
+    tempCtx.drawImage(
+        canvas,
+        0,
+        0,
+        tempCanvas.width,
+        tempCanvas.height
+    );
+
+    // ===== OCR開始 =====
 
     const result = await Tesseract.recognize(
-    canvas,
+    tempCanvas,
     "jpn",
     {
         logger: m => console.log(m),
-        tessedit_pageseg_mode: 7
+
+        tessedit_do_invert: "0",
+
+        tessedit_pageseg_mode: 8,
+
+        preserve_interword_spaces: "1",
+
+        user_defined_dpi: "300"
     }
 );
 
 let text = result.data.text;
+
+// 全角スペースへ統一
+text = text.replace(/ /g,"　");
+
+// OCRがよく間違える文字
+text = text.replace(/エ/g,"工");
+text = text.replace(/ロ/g,"口");
+text = text.replace(/ー/g,"一");
 
 // OCR結果を整形
 text = text.replace(/\n/g, " ");
@@ -1307,9 +1385,11 @@ text = text.trim();
 // 漢字・ひらがな・カタカナ・スペースだけ残す
 text = text.replace(/[^\u3040-\u30FF\u4E00-\u9FFF ]/g, "");
 
-// もう一度空白整理
-text = text.replace(/\s+/g, " ");
-text = text.trim();
+// 点や記号を削除
+text = text.replace(/[・.,，。、'"`´]/g, "");
+
+// 空白整理
+text = text.replace(/\s+/g, " ").trim();
 
 // ==============================
 // 氏名表示を見やすく補正
@@ -1336,7 +1416,7 @@ if(text===""){
 }
 
 // 信頼度が低い場合
-if(confidence < 75){
+if(confidence < 50){
 
     alert("文字がはっきり読み取れませんでした。\nもう一度カメラを近づけてください。");
 
