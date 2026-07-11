@@ -1301,7 +1301,7 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
             data[i+1] * 0.587 +
             data[i+2] * 0.114;
 
-        const value = gray > 165 ? 255 : 0;
+        const value = gray > 180 ? 255 : 0;
 
         data[i] = value;
         data[i+1] = value;
