@@ -1335,7 +1335,7 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
         tempCanvas.height
     );
 
-    // ===== OCR開始 =====
+// ===== OCR開始 =====
 
     const result = await Tesseract.recognize(
     tempCanvas,
@@ -1356,62 +1356,80 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
 let text = result.data.text;
 
 // 全角スペースへ統一
-text = text.replace(/ /g,"　");
+    text = text.replace(/ /g,"　");
 
 // OCRがよく間違える文字
-text = text.replace(/エ/g,"工");
-text = text.replace(/ロ/g,"口");
-text = text.replace(/ー/g,"一");
+    text = text.replace(/エ/g,"工");
+    text = text.replace(/ロ/g,"口");
+    text = text.replace(/ー/g,"一");
 
 // OCR結果を整形
-text = text.replace(/\n/g, " ");
-text = text.replace(/\s+/g, " ");
-text = text.trim();
+    text = text.replace(/\n/g, " ");
+    text = text.replace(/\s+/g, " ");
+    text = text.trim();
 
 
 // OCR信頼度
-const confidence = result.data.confidence;
+    const confidence = result.data.confidence;
 
-console.log("信頼度:", confidence);
+    console.log("信頼度:", confidence);
 
-console.log("OCR結果:", text);
+    console.log("OCR結果:", text);
 
 // ==============================
 // OCR結果の自動補正（氏名専用）
 // ==============================
 
 // 全角スペース→半角スペース
-text = text.replace(/　/g, " ");
+    text = text.replace(/　/g, " ");
 
 // 空白を1つに
-text = text.replace(/\s+/g, " ");
+    text = text.replace(/\s+/g, " ");
 
 // 前後の空白削除
-text = text.trim();
+    text = text.trim();
 
 // 漢字・ひらがな・カタカナ・スペースだけ残す
-text = text.replace(/[^\u3040-\u30FF\u4E00-\u9FFF ]/g, "");
+    text = text.replace(/[^\u3040-\u30FF\u4E00-\u9FFF ]/g, "");
 
 // 点や記号を削除
-text = text.replace(/[・.,，。、'"`´]/g, "");
+    text = text.replace(/[・.,，。、'"`´]/g, "");
 
 // 空白整理
-text = text.replace(/\s+/g, " ").trim();
+    text = text.replace(/\s+/g, " ").trim();
+
+// 「様」までで切る
+    const index = text.indexOf("様");
+    if (index !== -1) {
+        text = text.substring(0, index + 1);
+}
+
+// 「様」を削除
+    text = text.replace(/様/g, "");
+
+
+// 「様」を削除
+    text = text.replace(/機/g, "");
+
 
 // ==============================
 // 氏名表示を見やすく補正
 // ==============================
 
 // 2文字以上の漢字だけなら空白を削除
-if (/^[\u4E00-\u9FFF ]+$/.test(text)) {
+    if (/^[\u4E00-\u9FFF ]+$/.test(text)) {
 
     text = text.replace(/\s/g, "");
 
 }
 
-console.log("OCR結果:", text);
+// 最大10文字に制限
+    text = text.substring(0, 8);
 
-if(text===""){
+
+    console.log("OCR結果:", text);
+
+    if(text===""){
 
     alert("文字が見つかりませんでした");
 
@@ -1423,7 +1441,7 @@ if(text===""){
 }
 
 // 信頼度が低い場合
-if(confidence < 50){
+    if(confidence < 50){
 
     alert("文字がはっきり読み取れませんでした。\nもう一度カメラを近づけてください。");
 
