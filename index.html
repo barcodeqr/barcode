@@ -1256,14 +1256,14 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
 
     const videoRect = videoElement.getBoundingClientRect();
 
-// 緑枠を動画座標へ変換
-    const sx = (guideRect.left - videoRect.left) * vw / videoRect.width;
+// 緑枠より少し内側だけをOCRする
+    const marginX = 10;   // 左右10px内側
+    const marginY = 20;   // 上下20px内側
 
-    const sy = (guideRect.top - videoRect.top) * vh / videoRect.height;
-
-    const sw = guideRect.width * vw / videoRect.width;
-
-    const sh = guideRect.height * vh / videoRect.height;
+    const sx = ((guideRect.left + marginX) - videoRect.left) * vw / videoRect.width;
+    const sy = ((guideRect.top + marginY) - videoRect.top) * vh / videoRect.height;
+    const sw = (guideRect.width - marginX * 2) * vw / videoRect.width;
+    const sh = (guideRect.height - marginY * 2) * vh / videoRect.height;
 
 // OCR用Canvas
     canvas.width = sw;
