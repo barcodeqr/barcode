@@ -1375,6 +1375,10 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
     }
 );
 
+if (videoElement) {
+    videoElement.play().catch(() => {});
+}     
+        
 let text = result.data.text;
 
 // 全角スペースへ統一
