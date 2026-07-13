@@ -1447,12 +1447,18 @@ let text = result.data.text;
 
     console.log("OCR結果:", text);
 
-    if(text===""){
+if(text===""){
 
     alert("文字が見つかりませんでした");
 
-    this.disabled=false;
-    this.innerText="文字を読み取る";
+    Quagga.stop();
+
+    setTimeout(() => {
+        Quagga.start();
+    }, 300);
+
+    this.disabled = false;
+    this.innerText = "文字を読み取る";
 
     return;
 
