@@ -1451,12 +1451,6 @@ if(text===""){
 
     alert("文字が見つかりませんでした");
 
-    Quagga.stop();
-
-    setTimeout(() => {
-        Quagga.start();
-    }, 300);
-
     this.disabled = false;
     this.innerText = "文字を読み取る";
 
@@ -1468,13 +1462,7 @@ if(text===""){
 if(confidence < 50){
 
     alert("文字がはっきり読み取れませんでした。\nもう一度カメラを近づけてください。");
-
-    Quagga.stop();
-
-    setTimeout(() => {
-        Quagga.start();
-    }, 300);
-
+    
     this.disabled = false;
     this.innerText = "文字を読み取る";
 
