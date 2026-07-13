@@ -1455,6 +1455,8 @@ if(text===""){
 
     alert("文字が見つかりませんでした");
 
+    videoElement.play().catch(()=>{});
+
     this.disabled = false;
     this.innerText = "文字を読み取る";
 
@@ -1463,9 +1465,11 @@ if(text===""){
 }
 
 // 信頼度が低い場合
-if(confidence < 50){
+if(confidence < 60){
 
     alert("文字がはっきり読み取れませんでした。\nもう一度カメラを近づけてください。");
+
+    videoElement.play().catch(()=>{});
     
     this.disabled = false;
     this.innerText = "文字を読み取る";
