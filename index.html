@@ -1465,17 +1465,22 @@ if(text===""){
 }
 
 // 信頼度が低い場合
-    if(confidence < 50){
+if(confidence < 50){
 
     alert("文字がはっきり読み取れませんでした。\nもう一度カメラを近づけてください。");
 
-    this.disabled=false;
-    this.innerText="文字を読み取る";
+    Quagga.stop();
+
+    setTimeout(() => {
+        Quagga.start();
+    }, 300);
+
+    this.disabled = false;
+    this.innerText = "文字を読み取る";
 
     return;
 
 }
-
 // ===== OCR結果を表示 =====
 
 if(!code1){
