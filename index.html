@@ -1272,6 +1272,9 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
     this.disabled = true;
     this.innerText = "読み取り中...";
 
+    try {
+   
+
     // 毎回videoを取得
     videoElement = document.querySelector("#interactive video");
 
@@ -1544,12 +1547,23 @@ else if(!code2){
 
 }
 
-// ボタンを元に戻す
-this.disabled = false;
-this.innerText = "文字を読み取る";
+}
+catch(error){
+
+    console.error(error);
+
+    showOcrError();
+
+}
+finally{
+
+    this.disabled = false;
+    this.innerText = "文字を読み取る";
+
+}
 
 });
-
+    
 </script>
 
 <canvas id="ocr-canvas" style="display:none;"></canvas>
