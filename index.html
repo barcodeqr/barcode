@@ -973,6 +973,34 @@ function checkMatch() {
     const box2 = document.getElementById('box2');
     const scanGuide = document.querySelector('.scan-area-guide');
 
+//=============================
+// OCR読み取り失敗表示
+//=============================
+function showOcrError() {
+
+    const guide = document.getElementById("scan-area-guide");
+    const result = document.getElementById("scan-result");
+
+    // 赤枠
+    guide.classList.add("ng");
+
+    // メッセージ表示
+    result.textContent = "読み取れません";
+    result.style.color = "#ff3333";
+    result.style.display = "block";
+
+    // 1.5秒後に元へ戻す
+    setTimeout(() => {
+
+        guide.classList.remove("ng");
+
+        result.textContent = "";
+        result.style.display = "none";
+
+    }, 1500);
+
+}
+
     // ==============================
     // OCR用：空白を無視して比較
     // ==============================
@@ -1463,7 +1491,7 @@ let text = result.data.text;
 
 if(text===""){
 
-    alert("文字が見つかりませんでした");
+    showOcrError();
 
     videoElement.play().catch(()=>{});
 
@@ -1477,10 +1505,10 @@ if(text===""){
 // 信頼度が低い場合
 if(confidence < 50){
 
-    alert("文字がはっきり読み取れませんでした。\nもう一度カメラを近づけてください。");
+    showOcrError();
 
     videoElement.play().catch(()=>{});
-    
+
     this.disabled = false;
     this.innerText = "文字を読み取る";
 
