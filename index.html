@@ -910,6 +910,8 @@ fly.style.top  = (guideRect.top + guideRect.height / 2) + "px";
     // バーコード検出時の処理
     Quagga.onDetected(function(data) {
 
+    console.log("バーコード検出:", data.codeResult.code);
+
     // OCRモードではバーコードを無視
     if (currentMode !== "barcode") return;
 
@@ -939,21 +941,21 @@ fly.style.top  = (guideRect.top + guideRect.height / 2) + "px";
 
 if (!code1) {
 
+    isScanning = false;
+
     code1 = confirmedCode;
 
     document.getElementById("box1").classList.add("filled");
 
     playSound(audioScan);
 
-    flyBarcodeText(text, "box1");
+    flyBarcodeText(confirmedCode, "box1");
 
     setTimeout(() => {
 
         document.getElementById("code1").innerText = confirmedCode;
 
     },800);
-
-    isScanning = false;
 
     setTimeout(() => {
 
@@ -962,6 +964,7 @@ if (!code1) {
     },2000);
 
 }
+
 else if (!code2) {
 
     code2 = confirmedCode;
