@@ -979,19 +979,50 @@ else if (!code2) {
 function checkMatch() {
 
     const result = document.getElementById("scan-result");
-    const messageEl = document.getElementById('judge-message');
-    const box1 = document.getElementById('box1');
-    const box2 = document.getElementById('box2');
-    const scanGuide = document.querySelector('.scan-area-guide');
+    const box1 = document.getElementById("box1");
+    const box2 = document.getElementById("box2");
+    const scanGuide = document.querySelector(".scan-area-guide");
 
-    // OCR用：空白を無視して比較
-    const compare1 = code1.replace(/\s/g, "");
-    const compare2 = code2.replace(/\s/g, "");
+    // OCRでは空白を無視して比較
+    const compare1 = (code1 || "").replace(/\s/g, "");
+    const compare2 = (code2 || "").replace(/\s/g, "");
 
-    if (compare1 === compare2) {
-        ...
-    } else {
-        ...
+    if(compare1 === compare2){
+
+        result.className = "ok";
+        result.innerText = "OK";
+
+        box1.classList.remove("mismatch");
+        box2.classList.remove("mismatch");
+
+        box1.classList.add("match");
+        box2.classList.add("match");
+
+        // 枠・レーザーを緑
+        scanGuide.classList.remove("ng");
+
+        playSound(audioMatch);
+
+        saveHistory(code1, code2, "OK");
+
+    }else{
+
+        result.className = "ng";
+        result.innerText = "NG";
+
+        box1.classList.remove("match");
+        box2.classList.remove("match");
+
+        box1.classList.add("mismatch");
+        box2.classList.add("mismatch");
+
+        // 枠・レーザーを赤
+        scanGuide.classList.add("ng");
+
+        playSound(audioMismatch);
+
+        saveHistory(code1, code2, "NG");
+
     }
 
 }
@@ -999,7 +1030,7 @@ function checkMatch() {
 //=============================
 // OCR読み取り失敗表示
 //=============================
-function showOcrError() {
+function showOcrError(){
 
     const guide = document.querySelector(".scan-area-guide");
     const result = document.getElementById("scan-result");
@@ -1011,49 +1042,15 @@ function showOcrError() {
 
     playSound(audioMismatch);
 
-    setTimeout(() => {
+    setTimeout(function(){
+
         guide.classList.remove("ng");
+
         result.className = "";
         result.innerText = "";
-    }, 1500);
-}
-    // ==============================
-    // OCR用：空白を無視して比較
-    // ==============================
 
-    const compare1 = code1.replace(/\s/g, "");
-    const compare2 = code2.replace(/\s/g, "");
+    },1500);
 
-    if (compare1 === compare2) {
-
-        result.className = "ok";
-        result.innerText = "OK";
-
-        box1.classList.add("match");
-        box2.classList.add("match");
-
-// 枠・レーザーを緑に戻す
-        scanGuide.classList.remove("ng");
-
-        playSound(audioMatch);
-
-saveHistory(code1, code2, "OK");
-
-    } else {
-
-        result.className = "ng";
-        result.innerText = "NG";
-
-        box1.classList.add("mismatch");
-        box2.classList.add("mismatch");
-
-// 枠・レーザーを赤にする
-        scanGuide.classList.add("ng");
-
-        playSound(audioMismatch);
-
-saveHistory(code1, code2, "NG");
-    }
 }
 
 //=============================
@@ -1295,6 +1292,9 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
     this.innerText = "読み取り中...";
 
     try {
+
+    // OCR中はバーコード読取停止
+    isScanning = false;
    
 
     // 毎回videoを取得
@@ -1501,6 +1501,17 @@ let text = result.data.text;
 
 // 空白を削除
     text = text.replace(/\s/g, "");
+
+// OCRで混入しやすい不要文字を除去
+    text = text.replace(/[|｜!！:：;；\[\]\(\)（）{}｛｝]/g, "");
+
+// 前後の不要な「一」を除去
+    text = text.replace(/^一+/, "");
+    text = text.replace(/一+$/, "");
+
+// 前後の不要な「-」を除去
+    text = text.replace(/^-+/, "");
+    text = text.replace(/-+$/, "");
         
 // 最大8文字に制限
     text = text.substring(0, 8);
@@ -1534,6 +1545,7 @@ if(confidence < 50){
     return;
 
 }
+
 // ===== OCR結果を表示 =====
 
 if(!code1){
@@ -1579,7 +1591,31 @@ catch(error){
     showOcrError();
 
 }
+
 finally{
+
+    // OCR画像を1秒後に消す
+    setTimeout(function(){
+
+        const canvas = document.getElementById("ocr-canvas");
+
+        if(canvas){
+
+            const ctx = canvas.getContext("2d");
+
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+
+            canvas.style.display = "none";
+
+            canvas.width = 0;
+            canvas.height = 0;
+
+        }
+
+    },1000);
+
+    // バーコード読取再開
+    isScanning = true;
 
     this.disabled = false;
     this.innerText = "文字を読み取る";
