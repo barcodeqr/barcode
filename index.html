@@ -978,29 +978,23 @@ function checkMatch() {
 //=============================
 function showOcrError() {
 
-    const guide = document.getElementById("scan-area-guide");
+    const guide = document.querySelector(".scan-area-guide");
     const result = document.getElementById("scan-result");
 
-    // 赤枠
     guide.classList.add("ng");
 
-    // メッセージ表示
-    result.textContent = "読み取れません";
-    result.style.color = "#ff3333";
-    result.style.display = "block";
+    result.className = "ng";
+    result.innerText = "読み取れません";
 
-    // 1.5秒後に元へ戻す
+    playSound(audioMismatch);
+
     setTimeout(() => {
-
         guide.classList.remove("ng");
-
-        result.textContent = "";
-        result.style.display = "none";
-
+        result.className = "";
+        result.innerText = "";
     }, 1500);
 
 }
-
     // ==============================
     // OCR用：空白を無視して比較
     // ==============================
