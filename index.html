@@ -945,7 +945,7 @@ if (!code1) {
 
     playSound(audioScan);
 
-    flyBarcodeText(confirmedCode, "box1");
+    flyBarcodeText(text, "box1");
 
     setTimeout(() => {
 
@@ -1570,6 +1570,10 @@ if(!code1){
     flyBarcodeText(text, "box1");
 
     setTimeout(() => {
+        playSound(audioScan);
+    }, 250);
+
+    setTimeout(() => {
 
         document.getElementById("code1").innerText = text;
 
@@ -1578,11 +1582,16 @@ if(!code1){
     },800);
 
 }
+
 else if(!code2){
 
     code2 = text;
 
     flyBarcodeText(text, "box2");
+
+    setTimeout(() => {
+        playSound(audioScan);
+    }, 250);
 
     setTimeout(() => {
 
