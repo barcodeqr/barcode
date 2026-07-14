@@ -973,7 +973,9 @@ else if (!code2) {
 }
         });
 
+//=============================
 // 照合判定
+//=============================
 function checkMatch() {
 
     const result = document.getElementById("scan-result");
@@ -981,6 +983,18 @@ function checkMatch() {
     const box1 = document.getElementById('box1');
     const box2 = document.getElementById('box2');
     const scanGuide = document.querySelector('.scan-area-guide');
+
+    // OCR用：空白を無視して比較
+    const compare1 = code1.replace(/\s/g, "");
+    const compare2 = code2.replace(/\s/g, "");
+
+    if (compare1 === compare2) {
+        ...
+    } else {
+        ...
+    }
+
+}
 
 //=============================
 // OCR読み取り失敗表示
@@ -998,14 +1012,10 @@ function showOcrError() {
     playSound(audioMismatch);
 
     setTimeout(() => {
-
         guide.classList.remove("ng");
-
         result.className = "";
         result.innerText = "";
-
-    },1500);
-
+    }, 1500);
 }
     // ==============================
     // OCR用：空白を無視して比較
