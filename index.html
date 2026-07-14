@@ -85,6 +85,18 @@
 
 }
 
+/* OCR読み取り失敗表示 */
+.scan-area-guide.ocr-mode #scan-result.ocr-error{
+
+    display:block;
+
+    font-size:28px;
+    line-height:1.4;
+    color:#ff2222;
+    font-weight:bold;
+
+}
+
 /* スキャンエリア中央の横線（レーザー演出） */
 /* ==========================
    スキャン結果（OK/NG）
@@ -1037,7 +1049,7 @@ function showOcrError(){
 
     guide.classList.add("ng");
 
-    result.className = "ng";
+    result.className = "ocr-error";
     result.innerText = "読み取れません";
 
     playSound(audioMismatch);
@@ -1289,8 +1301,11 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
     document.getElementById("ocr-read-btn").addEventListener("click", async function(){
 
     this.disabled = true;
-    this.innerText = "読み取り中...";
+    this.innerText = "読取中...";
 
+    this.style.background = "#ff9800";
+    this.style.boxShadow = "0 5px 0 #c66900";
+    this.style.cursor = "wait";
     try {
 
     // OCR中はバーコード読取停止
@@ -1620,6 +1635,10 @@ finally{
     this.disabled = false;
     this.innerText = "文字を読み取る";
 
+    this.style.background = "";
+    this.style.boxShadow = "";
+    this.style.cursor = "";
+
 }
 
 });
@@ -1630,4 +1649,3 @@ finally{
 
 </body>
 </html>
-
