@@ -1327,7 +1327,7 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
 
 // 緑枠より少し内側だけをOCRする
     const marginX = 10;   // 左右10px内側
-    const marginY = 20;   // 上下20px内側
+    const marginY = 5;   // 上下5px内側
 
     const sx = ((guideRect.left + marginX) - videoRect.left) * vw / videoRect.width;
     const sy = ((guideRect.top + marginY) - videoRect.top) * vh / videoRect.height;
