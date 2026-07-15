@@ -48,7 +48,7 @@
     height: 100%;
     object-fit: cover;
 }
-        
+
 /* 画面中央の緑枠（スキャンエリアガイド） */
 .scan-area-guide {
     position:absolute;
@@ -1057,6 +1057,10 @@ function showOcrError(){
     const guide = document.querySelector(".scan-area-guide");
     const result = document.getElementById("scan-result");
 
+    // 現在表示中のOK/NGを保存
+    const oldClass = result.className;
+    const oldText = result.innerText;
+
     guide.classList.add("ng");
 
     result.className = "ocr-error";
@@ -1064,12 +1068,31 @@ function showOcrError(){
 
     playSound(audioMismatch);
 
-    setTimeout(function(){
+setTimeout(function(){
 
+    if(oldClass === "ng"){
+
+        // NGだったら赤枠に戻す
+        guide.classList.add("ng");
+
+    }else{
+
+        // OKまたは何も表示していなかった場合は緑枠
         guide.classList.remove("ng");
+
+    }
+
+    if(oldClass === "ok" || oldClass === "ng"){
+
+        result.className = oldClass;
+        result.innerText = oldText;
+
+    }else{
 
         result.className = "";
         result.innerText = "";
+
+    }
 
     },1500);
 
@@ -1278,13 +1301,12 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
     const guide = document.querySelector(".scan-area-guide");
     guide.classList.remove("ocr-mode");
 
-    // NG表示を解除（枠・レーザーが緑に戻る）
-    guide.classList.remove("ng");
+    // バーコード読取再開
+    isScanning = true;
 
-    // OK・NG表示を消す
-    const result = document.getElementById("scan-result");
-    result.className = "";
-    result.innerText = "";
+    // 誤読防止バッファを初期化
+    detectionBuffer = [];
+    lengthHistory = [];
 
 });
 
