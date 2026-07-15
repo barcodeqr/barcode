@@ -31,21 +31,23 @@
         }
 
         /* カメラ表示エリアのスタイル設定 */
-        #interactive.viewport { 
-            width: 100%; 
-            max-width: 500px; 
-            height: 300px; 
-            margin: 0 auto; 
-            background: #000; 
-            position: relative; 
-            overflow: hidden; 
-        }
-        #interactive.viewport canvas.drawingBuffer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
-　　　　#interactive.viewport video {
-    　　　　width: 100%;
-    　　　　height: 100%;
-    　　　　object-fit: cover;
-　　　　}
+#interactive.viewport {
+    width: 100%;
+    max-width: 500px;
+    aspect-ratio: 16 / 9;
+    height: auto;
+    margin: 0 auto;
+    background: #000;
+    position: relative;
+    overflow: hidden;
+}       
+    #interactive.viewport canvas.drawingBuffer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+
+#interactive.viewport video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
 
 /* 画面中央の緑枠（スキャンエリアガイド） */
 .scan-area-guide {
@@ -763,11 +765,14 @@ button:active{
 
     <div id="history-area"></div>
     <div id="flying-code"></div>
-    
+
 <canvas id="ocr-canvas"
-    style="display:none;
-           margin:20px auto;
-           border:3px solid red;">
+        style="
+            display:none;
+            margin:20px auto;
+            border:3px solid red;
+            max-width:100%;
+        ">
 </canvas>
 
 <script>
@@ -874,12 +879,13 @@ fly.style.top  = (guideRect.top + guideRect.height / 2) + "px";
                 name: "Live",
                 type: "LiveStream",
                 target: document.querySelector('#interactive'),
-                constraints: {
-                    width: { min: 640, ideal: 1280, max: 1920 },
-                    height: { min: 480, ideal: 720, max: 1080 },
-                    facingMode: "environment",
-                    focusMode: "continuous"
-                },
+
+    constraints: {
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        facingMode: "environment",
+        focusMode: "continuous"
+    },
                 area: {
                     top: "25%",
                     bottom: "25%",
@@ -1344,29 +1350,48 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
 
     const videoRect = videoElement.getBoundingClientRect();
 
-// 緑枠より少し内側だけをOCRする
-    const marginX = 2;
-    const marginY = 2;
+// ===== object-fit: cover対応 =====
+const scale = Math.max(
+    videoRect.width / vw,
+    videoRect.height / vh
+);
 
-const sx = (guideRect.left - videoRect.left) * vw / videoRect.width;
-const sy = (guideRect.top - videoRect.top) * vh / videoRect.height;
-const sw = guideRect.width * vw / videoRect.width;
-const sh = guideRect.height * vh / videoRect.height;
+const displayWidth = vw * scale;
+const displayHeight = vh * scale;
+
+const offsetX = (displayWidth - videoRect.width) / 2;
+const offsetY = (displayHeight - videoRect.height) / 2;
+
+const sx =
+    ((guideRect.left - videoRect.left) + offsetX) / scale;
+
+const sy =
+    ((guideRect.top - videoRect.top) + offsetY) / scale;
+
+const sw =
+    guideRect.width / scale;
+
+const sh =
+    guideRect.height / scale;
         
 // OCR用Canvas
-    canvas.width = sw;
-    canvas.height = sh;
+    canvas.width = Math.round(sw);
+    canvas.height = Math.round(sh);
 
 // 表示サイズ（緑枠と同じ大きさ）
-canvas.style.maxWidth = "none";
-canvas.style.maxWidth = guideRect.width + "px";
-canvas.style.width = "100%";
-canvas.style.height = "auto";
-canvas.style.display = "block";
-canvas.style.border = "3px solid red";
-canvas.style.margin = "20px auto";
+    canvas.style.maxWidth = "none";
+    canvas.style.maxWidth = guideRect.width + "px";
+    canvas.style.width = "100%";
+    canvas.style.height = "auto";
+    canvas.style.display = "block";
+    canvas.style.border = "3px solid red";
+    canvas.style.margin = "20px auto";
 
-    // 緑枠だけ切り抜く
+// 滑らかに表示
+    ctx.imageSmoothingEnabled = true;
+
+
+// 緑枠だけ切り抜く
     ctx.drawImage(
         videoElement,
         sx,
@@ -1379,15 +1404,16 @@ canvas.style.margin = "20px auto";
         canvas.height
     );
 
+
 // ===== OCR用画像前処理 =====
 
-let imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
-let data = imageData.data;
+    let imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
+    let data = imageData.data;
 
 // 画像全体の明るさを計算
-let total = 0;
+    let total = 0;
 
-for(let i = 0; i < data.length; i += 4){
+    for(let i = 0; i < data.length; i += 4){
 
     total +=
         data[i] * 0.299 +
@@ -1397,10 +1423,10 @@ for(let i = 0; i < data.length; i += 4){
 }
 
 // 平均の明るさをしきい値にする
-const threshold = total / (data.length / 4);
+   const threshold = total / (data.length / 4);
 
 // 二値化
-for(let i = 0; i < data.length; i += 4){
+    for(let i = 0; i < data.length; i += 4){
 
     const gray =
         data[i] * 0.299 +
@@ -1415,14 +1441,14 @@ for(let i = 0; i < data.length; i += 4){
 
 }
 
-ctx.putImageData(imageData,0,0);
+    ctx.putImageData(imageData,0,0);
 
-    // OCRしやすいように2倍へ拡大
+// OCRしやすいように2倍へ拡大
     const tempCanvas = document.createElement("canvas");
     const tempCtx = tempCanvas.getContext("2d");
 
-    tempCanvas.width = canvas.width * 3;
-    tempCanvas.height = canvas.height * 3;
+    tempCanvas.width = canvas.width * 2;
+    tempCanvas.height = canvas.height * 2;
 
     tempCtx.imageSmoothingEnabled = false;
 
@@ -1452,8 +1478,8 @@ ctx.putImageData(imageData,0,0);
     }
 );
 
-if (videoElement) {
-    videoElement.play().catch(() => {});
+    if (videoElement) {
+        videoElement.play().catch(() => {});
 }     
         
 let text = result.data.text;
@@ -1553,16 +1579,16 @@ if(text===""){
 }
 
 // 信頼度が低い場合
-if(confidence < 50){
+    if(confidence < 50){
 
-    showOcrError();
+        showOcrError();
 
-    videoElement.play().catch(()=>{});
+        videoElement.play().catch(()=>{});
 
-    this.disabled = false;
-    this.innerText = "文字を読み取る";
+        this.disabled = false;
+        this.innerText = "文字を読み取る";
 
-    return;
+        return;
 
 }
 
@@ -1630,7 +1656,9 @@ finally{
 
         if(canvas){
 
-            const ctx = canvas.getContext("2d");
+            const ctx = canvas.getContext("2d", {
+    willReadFrequently: true
+});
 
             ctx.clearRect(0,0,canvas.width,canvas.height);
 
@@ -1658,8 +1686,6 @@ finally{
 });
     
 </script>
-
-<canvas id="ocr-canvas" style="display:none;"></canvas>
 
 </body>
 </html>
