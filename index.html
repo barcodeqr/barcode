@@ -1355,8 +1355,9 @@ const sh = guideRect.height * vh / videoRect.height;
 
 // 表示サイズ（緑枠と同じ大きさ）
 canvas.style.maxWidth = "none";
-canvas.style.width = guideRect.width + "px";
-canvas.style.height = guideRect.height + "px";
+canvas.style.maxWidth = guideRect.width + "px";
+canvas.style.width = "100%";
+canvas.style.height = "auto";
 canvas.style.display = "block";
 canvas.style.border = "3px solid red";
 canvas.style.margin = "20px auto";
