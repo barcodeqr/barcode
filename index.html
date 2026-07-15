@@ -1356,13 +1356,13 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
     canvas.width = sw;
     canvas.height = sh;
 
-    // 表示サイズ
-    canvas.style.maxWidth = "400px";
-    canvas.style.width = "100%";
-    canvas.style.height = "auto";
-    canvas.style.display = "block";
-    canvas.style.border = "3px solid red";
-    canvas.style.margin = "20px auto";
+// 表示サイズ（緑枠と同じ大きさ）
+canvas.style.maxWidth = "none";
+canvas.style.width = guideRect.width + "px";
+canvas.style.height = guideRect.height + "px";
+canvas.style.display = "block";
+canvas.style.border = "3px solid red";
+canvas.style.margin = "20px auto";
 
     // 緑枠だけ切り抜く
     ctx.drawImage(
