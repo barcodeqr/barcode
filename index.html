@@ -6,10 +6,12 @@
     <link rel="apple-touch-icon" href="icon.png">
     <meta name="theme-color" content="#00aa44">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>バーコード照合システム</title>
-    <!-- Quagga.js ライブラリの読み込み -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <title>バーコード・QRコード照合システム</title>
+    
+    <!-- ZXing.js (バーコード/QRコード両対応) & Tesseract.js (OCR) -->
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
     <script src="https://unpkg.com/tesseract.js@5/dist/tesseract.min.js"></script>
+    
     <style>
         body { font-family: sans-serif; text-align: center; margin: 20px; background: #f0f0f0; }
         
@@ -31,729 +33,403 @@
         }
 
         /* カメラ表示エリアのスタイル設定 */
-#interactive.viewport {
-    width: 100%;
-    max-width: 500px;
-    aspect-ratio: 16 / 9;
-    height: auto;
-    margin: 0 auto;
-    background: #000;
-    position: relative;
-    overflow: hidden;
-}       
-    #interactive.viewport canvas.drawingBuffer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+        #interactive.viewport {
+            width: 100%;
+            max-width: 500px;
+            aspect-ratio: 16 / 9;
+            height: auto;
+            margin: 0 auto;
+            background: #000;
+            position: relative;
+            overflow: hidden;
+        }       
 
-#interactive.viewport video {
-    width:100%;
-    height:100%;
-    object-fit:cover;
-}
+        #interactive.viewport video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
 
-/* 画面中央の緑枠（スキャンエリアガイド） */
-.scan-area-guide {
-    position:absolute;
-    top:25%;
-    left:10%;
-    width:80%;
-    height:50%;
+        /* 画面中央の緑枠（スキャンエリアガイド） */
+        .scan-area-guide {
+            position: absolute;
+            top: 25%;
+            left: 10%;
+            width: 80%;
+            height: 50%;
 
-    border:3px solid #00ff66;
-    box-sizing:border-box;
-    box-shadow:0 0 0 400px rgba(0,0,0,.4);
+            border: 3px solid #00ff66;
+            box-sizing: border-box;
+            box-shadow: 0 0 0 400px rgba(0,0,0,.4);
 
-    z-index:10;
-    overflow:hidden;
+            z-index: 10;
+            overflow: hidden;
 
-    display:flex;
-    justify-content:center;
-    align-items:center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
 
-    pointer-events:none;
-}
+            pointer-events: none;
+        }
 
-/* ==========================
-   OCRモード用の細い枠
-========================== */
+        /* OCRモード用の細い枠 */
+        .scan-area-guide.ocr-mode{
+            top: 38%;
+            left: 15%;
+            width: 70%;
+            height: 22%;
+        }
 
-.scan-area-guide.ocr-mode{
+        /* OCRモードではOK・NGを小さくする */
+        .scan-area-guide.ocr-mode #scan-result{
+            font-size: 60px;
+        }
 
-    top:38%;
-    left:15%;
-    width:70%;
-    height:22%;
+        /* OCR読み取り失敗表示 */
+        .scan-area-guide.ocr-mode #scan-result.ocr-error{
+            display: block;
+            font-size: 28px;
+            line-height: 1.4;
+            color: #ff2222;
+            font-weight: bold;
+        }
 
-}
+        /* スキャン結果（OK/NG） */
+        #scan-result{
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%,-50%);
 
-/* OCRモードではOK・NGを小さくする */
-.scan-area-guide.ocr-mode #scan-result{
+            width: 100%;
+            text-align: center;
 
-    font-size:60px;
+            font-size: 120px;
+            font-weight: bold;
 
-}
+            color: #fff;
+            text-shadow:
+                0 0 10px #000,
+                0 0 20px #000,
+                0 0 40px #000;
 
-/* OCR読み取り失敗表示 */
-.scan-area-guide.ocr-mode #scan-result.ocr-error{
+            display: none;
+            z-index: 100;
+            pointer-events: none;
+        }
 
-    display:block;
+        #scan-result.ok{
+            display: block;
+            color: #00ff66;
+        }
 
-    font-size:28px;
-    line-height:1.4;
-    color:#ff2222;
-    font-weight:bold;
+        #scan-result.ng{
+            display: block;
+            color: #ff2222;
+        }
 
-}
+        /* レーザー演出 */
+        .scan-area-guide::after{
+            content: '';
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 30px;
+            animation: scanLine 1.8s ease-in-out infinite alternate;
+        }
 
-/* スキャンエリア中央の横線（レーザー演出） */
-/* ==========================
-   スキャン結果（OK/NG）
-========================== */
+        @keyframes scanLine {
+            0% { 
+                top: -30px; 
+                background: linear-gradient(to bottom, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%);
+                box-shadow: 0 3px 10px rgba(0,255,102,0.4);
+            }
+            49.9% {
+                background: linear-gradient(to bottom, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%);
+            }
+            50% {
+                top: 100%;
+                background: linear-gradient(to top, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%);
+                box-shadow: 0 -3px 10px rgba(0,255,102,0.4);
+            }
+            100% {
+                top: -30px;
+                background: linear-gradient(to top, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%);
+                box-shadow: 0 -3px 10px rgba(0,255,102,0.4);
+            }
+        }
 
-#scan-result{
-    position:absolute;
-    top:50%;
-    left:50%;
-    transform:translate(-50%,-50%);
+        /* NG時はスキャン枠とレーザーを赤にする */
+        .scan-area-guide.ng {
+            border-color: #ff0000;
+        }
 
-    width:100%;
-    text-align:center;
+        .scan-area-guide.ng::after {
+            animation-name: scanLineRed;
+        }
 
-    font-size:120px;
-    font-weight:bold;
+        @keyframes scanLineRed {
+            0% {
+                top: -30px;
+                background: linear-gradient(to bottom, rgba(255,0,0,0) 0%, rgba(255,0,0,0.9) 100%);
+                box-shadow: 0 3px 10px rgba(255,0,0,0.5);
+            }
+            49.9% {
+                background: linear-gradient(to bottom, rgba(255,0,0,0) 0%, rgba(255,0,0,0.9) 100%);
+            }
+            50% {
+                top: 100%;
+                background: linear-gradient(to top, rgba(255,0,0,0) 0%, rgba(255,0,0,0.9) 100%);
+                box-shadow: 0 -3px 10px rgba(255,0,0,0.5);
+            }
+            100% {
+                top: -30px;
+                background: linear-gradient(to top, rgba(255,0,0,0) 0%, rgba(255,0,0,0.9) 100%);
+                box-shadow: 0 -3px 10px rgba(255,0,0,0.5);
+            }
+        }
 
-    color:#fff;
-    text-shadow:
-        0 0 10px #000,
-        0 0 20px #000,
-        0 0 40px #000;
+        .result-box { display: flex; justify-content: space-around; margin: 20px 0; }
 
-    display:none;
-    z-index:100;
-    pointer-events:none;
-}
+        .code-display {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            width: 40%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border: 2px solid transparent;
+            transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.15s ease;
+        }       
 
-#scan-result.ok{
-    display:block;
-    color:#00ff66;
-}
+        .code-display.match {
+            background: #d4edda;
+            border-color: #28a745;
+            transform: scale(1.03);
+        }
 
-#scan-result.ng{
-    display:block;
-    color:#ff2222;
-}
+        .code-display.mismatch {
+            background: #f8d7da;
+            border-color: #dc3545;
+            transform: scale(1.03);
+        }
 
-/* ==========================
-   レーザー
-========================== */
-
-.scan-area-guide::after{
-    content:'';
-    position:absolute;
-    left:0;
-    width:100%;
-    height:30px;
-    animation:scanLine 1.8s ease-in-out infinite alternate;
-}
-
-@keyframes scanLine {
-    /* 【上から下へ向かうとき】 */
-    0% { 
-        /* 枠の上の外側に隠す */
-        top: -30px; 
-        /* 下向きのグラデーション（残像が上につく） */
-        background: linear-gradient(to bottom, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%);
-        box-shadow: 0 3px 10px rgba(0,255,102,0.4);
-    }
-    
-    /* 折り返し直前：グラデーションの向きを維持したまま下端へ */
-    49.9% {
-        background: linear-gradient(to bottom, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%);
-    }
-
-    /* 【下から上へ向かうとき】 */
-    50% {
-        /* 枠の下の外側に隠す */
-        top: 100%;
-        /* 上向きのグラデーションに一瞬で切り替え（残像が下につく） */
-        background: linear-gradient(to top, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%);
-        box-shadow: 0 -3px 10px rgba(0,255,102,0.4);
-    }
-
-    /* 往復の終点（一番上に戻ってきたとき） */
-    100% {
-        top: -30px;
-        background: linear-gradient(to top, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%);
-        box-shadow: 0 -3px 10px rgba(0,255,102,0.4);
-    }
-}
-
-/*==========================
-  NG時はスキャン枠とレーザーを赤にする
-==========================*/
-
-.scan-area-guide.ng {
-    border-color: #ff0000;
-}
-
-.scan-area-guide.ng::after {
-    animation-name: scanLineRed;
-}
-
-@keyframes scanLineRed {
-
-    0% {
-        top: -30px;
-        background: linear-gradient(to bottom,
-            rgba(255,0,0,0) 0%,
-            rgba(255,0,0,0.9) 100%);
-        box-shadow: 0 3px 10px rgba(255,0,0,0.5);
-    }
-
-    49.9% {
-        background: linear-gradient(to bottom,
-            rgba(255,0,0,0) 0%,
-            rgba(255,0,0,0.9) 100%);
-    }
-
-    50% {
-        top: 100%;
-        background: linear-gradient(to top,
-            rgba(255,0,0,0) 0%,
-            rgba(255,0,0,0.9) 100%);
-        box-shadow: 0 -3px 10px rgba(255,0,0,0.5);
-    }
-
-    100% {
-        top: -30px;
-        background: linear-gradient(to top,
-            rgba(255,0,0,0) 0%,
-            rgba(255,0,0,0.9) 100%);
-        box-shadow: 0 -3px 10px rgba(255,0,0,0.5);
-    }
-}
-
-.result-box { display: flex; justify-content: space-around; margin: 20px 0; }
-
-.code-display {
-    background: white;
-    padding: 15px;
-    border-radius: 8px;
-    width: 40%;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-
-    border: 2px solid transparent;
-    transition: background-color 0.25s ease,
-                border-color 0.25s ease,
-                transform 0.15s ease;
-}       
-.code-display.match {
-    background: #d4edda;
-    border-color: #28a745;
-    transform: scale(1.03);
-}
-
-.code-display.mismatch {
-    background: #f8d7da;
-    border-color: #dc3545;
-    transform: scale(1.03);
-}
-
- .code-display h3 { margin: 0 0 10px 0; font-size: 14px; color: #666; }
-
+        .code-display h3 { margin: 0 0 10px 0; font-size: 14px; color: #666; }
         .code-value { font-size: 18px; font-weight: bold; min-height: 27px; word-break: break-all; }
 
-        #judge-message { font-size: 24px; font-weight: bold; margin-top: 20px; padding: 10px; border-radius: 8px; }
-
-        .match { background: #d4edda; color: #155724; }
-
-        .mismatch { background: #f8d7da; color: #721c24; }
-
-button{
-
-    padding:14px 28px;
-
-    font-size:18px;
-
-    font-weight:bold;
-
-    margin:10px;
-
-    cursor:pointer;
-
-    color:#ffffff;
-
-    border:none;
-
-    border-radius:16px;
-
-    background:linear-gradient(to bottom,#4da3ff,#007aff);
-
-    box-shadow:
-        0 5px 0 #005fc2,
-        0 8px 18px rgba(0,0,0,.25);
-
-    transition:.15s;
-
-}
-
-button:hover{
-
-    transform:translateY(-2px);
-
-    box-shadow:
-        0 7px 0 #005fc2,
-        0 10px 20px rgba(0,0,0,.30);
-
-}
-
-button:active{
-
-    transform:translateY(4px);
-
-    box-shadow:
-        0 1px 0 #005fc2,
-        0 2px 6px rgba(0,0,0,.25);
-
-}
-
-.code-display.filled{
-
-    transform:translateY(-2px) scale(1.02);
-
-    background:#fff9d6;
-
-    border:2px solid #e6b800;
-
-    box-shadow:
-        inset 0 2px 3px rgba(255,255,255,.9),
-        inset 0 -3px 5px rgba(0,0,0,.15),
-        0 6px 12px rgba(230,184,0,.35);
-
-    transition:all .25s ease;
-
-}
-
-.code-display.filled.match{
-    background:#d4edda;
-    border-color:#28a745;
-}
-
-.code-display.filled.mismatch{
-    background:#f8d7da;
-    border-color:#dc3545;
-}
-
-#reset-btn{
-    width:220px;
-    height:60px;
-    font-size:24px;
-    font-weight:bold;
-    border-radius:10px;
-
-    background:#f57c00;
-    color:white;
-    
-    box-shadow:
-        0 5px 0 #c25b00,
-        0 8px 18px rgba(0,0,0,.25);
-}
-#reset-btn:hover{
-
-    box-shadow:
-        0 7px 0 #c25b00,
-        0 10px 20px rgba(0,0,0,.30);
-
-}
-
-#reset-btn:active{
-
-    box-shadow:
-        0 1px 0 #c25b00,
-        0 2px 6px rgba(0,0,0,.25);
-
-}
-        
-/* ==========================
-   飛んでいくバーコード文字
-========================== */
-
-#flying-code{
-
-    position:fixed;
-
-    left:50%;
-    top:45%;
-
-    font-size:42px;
-    font-weight:bold;
-
-    color:#00ff66;
-
-    text-shadow:
-        0 0 10px #00ff66,
-        0 0 20px #00ff66;
-
-    opacity:0;
-
-    pointer-events:none;
-
-    z-index:9999;
-
-    transition:
-        transform .8s ease,
-        opacity .8s ease;
-}
-
-/*==========================
-  履歴ボタン
-==========================*/
-
-#history-btn{
-    width:220px;
-    height:60px;
-    font-size:22px;
-    font-weight:bold;
-    border-radius:10px;
-
-    color:#fff;
-
-    background:linear-gradient(to bottom,#4da3ff,#007aff);
-
-    box-shadow:
-        0 5px 0 #005fc2,
-        0 8px 18px rgba(0,0,0,.25);
-}
-
-#history-btn:hover{
-
-    box-shadow:
-        0 7px 0 #005fc2,
-        0 10px 20px rgba(0,0,0,.30);
-
-}
-
-#history-btn:active{
-
-    box-shadow:
-        0 1px 0 #005fc2,
-        0 2px 6px rgba(0,0,0,.25);
-
-}
-#csv-btn{
-    width:220px;
-    height:60px;
-    font-size:22px;
-    font-weight:bold;
-    border-radius:10px;
-
-    color:#fff;
-
-    background:linear-gradient(to bottom,#4CAF50,#2E7D32);
-
-    box-shadow:
-        0 5px 0 #1B5E20,
-        0 8px 18px rgba(0,0,0,.25);
-}
-
-#csv-btn:hover{
-
-    box-shadow:
-        0 7px 0 #1B5E20,
-        0 10px 20px rgba(0,0,0,.30);
-}
-
-#csv-btn:active{
-
-    box-shadow:
-        0 1px 0 #1B5E20,
-        0 2px 6px rgba(0,0,0,.25);
-}
-
-#clear-history-btn{
-    width:220px;
-    height:60px;
-    font-size:22px;
-    font-weight:bold;
-    border-radius:10px;
-    background:linear-gradient(to bottom,#ff7777,#d9534f);
-    color:#fff;
-
-    box-shadow:
-        0 5px 0 #a52a2a,
-        0 8px 18px rgba(0,0,0,.25);
-}
-
-@media (hover: hover) {
-
-    #clear-history-btn:hover{
-
-        background:#c9302c;
-
-    }
-
-}
-
-/*==========================
-  OCRボタン
-==========================*/
-
-#ocr-read-btn{
-
-    display:none;
-
-    width:260px;
-
-    height:65px;
-
-    margin:18px auto;
-
-    font-size:24px;
-
-    font-weight:bold;
-
-    background:linear-gradient(to bottom,#4CAF50,#2E7D32);
-
-}
-
-/*==========================
-  履歴表示エリア
-==========================*/
-
-#history-area{
-
-    display:none;
-
-    width:90%;
-    max-width:700px;
-
-    margin:20px auto;
-
-    background:#ffffff;
-
-    border:1px solid #cccccc;
-
-    border-radius:10px;
-
-    padding:15px;
-
-    max-height:300px;
-
-    overflow-y:auto;
-
-    text-align:left;
-
-    box-shadow:0 2px 8px rgba(0,0,0,.15);
-
-    font-size:15px;
-
-    line-height:1.6;
-
-}
-
-.history-item{
-
-    border-bottom:1px solid #dddddd;
-
-    padding:8px 0;
-
-}
-
-.history-item:last-child{
-
-    border-bottom:none;
-
-}
-
-.history-ok{
-
-    color:#008800;
-
-    font-weight:bold;
-
-}
-
-.history-ng{
-
-    color:#cc0000;
-
-    font-weight:bold;
-
-}
-
-/*==========================
-  履歴の色
-==========================*/
-
-.history-item.ok{
-    background:#eaf8ea;
-    border-left:6px solid #28a745;
-}
-
-.history-item.ng{
-    background:#fdeaea;
-    border-left:6px solid #dc3545;
-}
-
-/*==========================
-  新しい履歴を光らせる
-==========================*/
-
-.history-item.new{
-
-    animation:newHistoryFlash 1s;
-
-}
-
-@keyframes newHistoryFlash{
-
-    0%{
-        background:#fff59d;
-    }
-
-    100%{
-        background:inherit;
-    }
-
-}
-/*=============================
-  タイトル
-=============================*/
-
-.title-box{
-    width:100%;
-    max-width:500px;
-    margin:15px auto 20px;
-    padding:18px 10px;
-
-    box-sizing:border-box;
-
-    text-align:center;
-    color:#fff;
-    background:linear-gradient(135deg,#009688,#00b894);
-    border-radius:14px;
-    border:2px solid rgba(255,255,255,0.25);
-    box-shadow:0 5px 15px rgba(0,0,0,0.25);
-}
-
-.title-main{
-    font-size:28px;
-    font-weight:bold;
-    letter-spacing:2px;
-    text-shadow:1px 1px 2px rgba(0,0,0,0.3);
-}
-
-.title-sub{
-    margin-top:6px;
-    font-size:14px;
-    letter-spacing:3px;
-    color:rgba(255,255,255,0.9);
-}
-@media (max-width:600px){
-
-    .title-main{
-        font-size:20px;
-        letter-spacing:0px;
-    }
-
-    .title-sub{
-        font-size:12px;
-        letter-spacing:2px;
-    }
-
-}
-
-/*=============================
-  モード切替
-=============================*/
-
-#mode-area{
-    margin:20px 0;
-}
-
-#barcode-mode-btn,
-#ocr-mode-btn{
-
-    width:220px;
-    height:55px;
-
-    font-size:20px;
-    font-weight:bold;
-
-    color:#008000;
-
-    background:#ffffff;
-
-    border:2px solid #00aa44;
-
-    border-radius:14px;
-
-    box-shadow:
-        0 5px 0 #0b7a35,
-        0 8px 15px rgba(0,0,0,.25);
-
-    transition:.2s;
-}
-
-.mode-active{
-
-    color:#ffffff !important;
-
-    background:linear-gradient(to bottom,#22c55e,#15803d)!important;
-
-    border-color:#0b7a35;
-
-    box-shadow:
-        0 3px 0 #0b7a35,
-        0 0 18px rgba(34,197,94,.7);
-
-    transform:translateY(2px);
-
-}
-        
-</style>
-
+        button{
+            padding: 14px 28px;
+            font-size: 18px;
+            font-weight: bold;
+            margin: 10px;
+            cursor: pointer;
+            color: #ffffff;
+            border: none;
+            border-radius: 16px;
+            background: linear-gradient(to bottom,#4da3ff,#007aff);
+            box-shadow: 0 5px 0 #005fc2, 0 8px 18px rgba(0,0,0,.25);
+            transition: .15s;
+        }
+
+        button:hover{
+            transform: translateY(-2px);
+            box-shadow: 0 7px 0 #005fc2, 0 10px 20px rgba(0,0,0,.30);
+        }
+
+        button:active{
+            transform: translateY(4px);
+            box-shadow: 0 1px 0 #005fc2, 0 2px 6px rgba(0,0,0,.25);
+        }
+
+        .code-display.filled{
+            transform: translateY(-2px) scale(1.02);
+            background: #fff9d6;
+            border: 2px solid #e6b800;
+            box-shadow: inset 0 2px 3px rgba(255,255,255,.9), inset 0 -3px 5px rgba(0,0,0,.15), 0 6px 12px rgba(230,184,0,.35);
+            transition: all .25s ease;
+        }
+
+        .code-display.filled.match{
+            background: #d4edda;
+            border-color: #28a745;
+        }
+
+        .code-display.filled.mismatch{
+            background: #f8d7da;
+            border-color: #dc3545;
+        }
+
+        #reset-btn{
+            width: 220px;
+            height: 60px;
+            font-size: 24px;
+            font-weight: bold;
+            border-radius: 10px;
+            background: #f57c00;
+            color: white;
+            box-shadow: 0 5px 0 #c25b00, 0 8px 18px rgba(0,0,0,.25);
+        }
+
+        /* 飛んでいくコード文字 */
+        #flying-code{
+            position: fixed;
+            left: 50%;
+            top: 45%;
+            font-size: 42px;
+            font-weight: bold;
+            color: #00ff66;
+            text-shadow: 0 0 10px #00ff66, 0 0 20px #00ff66;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 9999;
+            transition: transform .8s ease, opacity .8s ease;
+        }
+
+        /* 履歴ボタン類 */
+        #history-btn, #csv-btn, #clear-history-btn {
+            width: 220px;
+            height: 60px;
+            font-size: 22px;
+            font-weight: bold;
+            border-radius: 10px;
+            color: #fff;
+        }
+
+        #history-btn {
+            background: linear-gradient(to bottom,#4da3ff,#007aff);
+            box-shadow: 0 5px 0 #005fc2, 0 8px 18px rgba(0,0,0,.25);
+        }
+
+        #csv-btn {
+            background: linear-gradient(to bottom,#4CAF50,#2E7D32);
+            box-shadow: 0 5px 0 #1B5E20, 0 8px 18px rgba(0,0,0,.25);
+        }
+
+        #clear-history-btn {
+            background: linear-gradient(to bottom,#ff7777,#d9534f);
+            box-shadow: 0 5px 0 #a52a2a, 0 8px 18px rgba(0,0,0,.25);
+        }
+
+        #ocr-read-btn{
+            display: none;
+            width: 260px;
+            height: 65px;
+            margin: 18px auto;
+            font-size: 24px;
+            font-weight: bold;
+            background: linear-gradient(to bottom,#4CAF50,#2E7D32);
+        }
+
+        #history-area{
+            display: none;
+            width: 90%;
+            max-width: 700px;
+            margin: 20px auto;
+            background: #ffffff;
+            border: 1px solid #cccccc;
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            text-align: left;
+            box-shadow: 0 2px 8px rgba(0,0,0,.15);
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        .history-item{ border-bottom: 1px solid #dddddd; padding: 8px 0; }
+        .history-item:last-child{ border-bottom: none; }
+        .history-ok{ color: #008800; font-weight: bold; }
+        .history-ng{ color: #cc0000; font-weight: bold; }
+
+        .history-item.ok{ background: #eaf8ea; border-left: 6px solid #28a745; }
+        .history-item.ng{ background: #fdeaea; border-left: 6px solid #dc3545; }
+        .history-item.new{ animation: newHistoryFlash 1s; }
+
+        @keyframes newHistoryFlash{
+            0%{ background: #fff59d; }
+            100%{ background: inherit; }
+        }
+
+        .title-box{
+            width: 100%;
+            max-width: 500px;
+            margin: 15px auto 20px;
+            padding: 18px 10px;
+            box-sizing: border-box;
+            text-align: center;
+            color: #fff;
+            background: linear-gradient(135deg,#009688,#00b894);
+            border-radius: 14px;
+            border: 2px solid rgba(255,255,255,0.25);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.25);
+        }
+
+        .title-main{ font-size: 28px; font-weight: bold; letter-spacing: 2px; }
+        .title-sub{ margin-top: 6px; font-size: 14px; letter-spacing: 3px; color: rgba(255,255,255,0.9); }
+
+        @media (max-width:600px){
+            .title-main{ font-size: 20px; letter-spacing: 0px; }
+            .title-sub{ font-size: 12px; letter-spacing: 2px; }
+        }
+
+        #mode-area{ margin: 20px 0; }
+
+        #barcode-mode-btn, #ocr-mode-btn{
+            width: 220px;
+            height: 55px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #008000;
+            background: #ffffff;
+            border: 2px solid #00aa44;
+            border-radius: 14px;
+            box-shadow: 0 5px 0 #0b7a35, 0 8px 15px rgba(0,0,0,.25);
+            transition: .2s;
+        }
+
+        .mode-active{
+            color: #ffffff !important;
+            background: linear-gradient(to bottom,#22c55e,#15803d) !important;
+            border-color: #0b7a35;
+            box-shadow: 0 3px 0 #0b7a35, 0 0 18px rgba(34,197,94,.7);
+            transform: translateY(2px);
+        }
+    </style>
 </head>
 
 <body>
 
     <div class="title-box">
-    <div class="title-main">💊 バーコード 2点照合システム</div>
-    <div class="title-sub">Barcode Matching System</div>
-</div>
+        <div class="title-main">💊 コード・QR 2点照合システム</div>
+        <div class="title-sub">Barcode & QR Matching System</div>
+    </div>
     
-    <!-- iPhone用の音声解放ボタンを追加 -->
     <button id="start-audio-btn">最初にタップしてスキャン開始</button>
 
-<div id="mode-area">
-
-    <button id="barcode-mode-btn">バーコード照合</button>
-
-    <button id="ocr-mode-btn">文字照合</button>
-
-</div>
+    <div id="mode-area">
+        <button id="barcode-mode-btn">コード照合</button>
+        <button id="ocr-mode-btn">文字照合</button>
+    </div>
     
-    <p>緑の枠内にバーコードを合わせてください</p>
+    <p>緑の枠内にコードまたはQRを合わせてください</p>
 
     <!-- カメラ映像表示エリア -->
-<div id="interactive" class="viewport">
-
-    <div class="scan-area-guide">
-
-        <div id="scan-result"></div>
-
+    <div id="interactive" class="viewport">
+        <video id="video-element" playsinline webkit-playsinline muted autoplay></video>
+        <div class="scan-area-guide">
+            <div id="scan-result"></div>
+        </div>
     </div>
 
-</div>
-    <button id="ocr-read-btn" style="display:none;">
-        文字を読み取る
-    </button>
+    <button id="ocr-read-btn" style="display:none;">文字を読み取る</button>
 
     <div class="result-box">
         <div class="code-display" id="box1">
-            <h3>1つ目のバーコード</h3>
+            <h3>1つ目のコード</h3>
             <div id="code1" class="code-value">-</div>
         </div>
         <div class="code-display" id="box2">
-            <h3>2つ目のバーコード</h3>
+            <h3>2つ目のコード</h3>
             <div id="code2" class="code-value">-</div>
         </div>
     </div>
@@ -766,995 +442,531 @@ button:active{
     <div id="history-area"></div>
     <div id="flying-code"></div>
 
-<canvas id="ocr-canvas"
-        style="
-            display:none;
-            margin:20px auto;
-            border:3px solid red;
-            max-width:100%;
-        ">
-</canvas>
+    <canvas id="ocr-canvas" style="display:none; margin:20px auto; border:3px solid red; max-width:100%;"></canvas>
 
 <script>
-        let code1 = null;
-        let code2 = null;
-        let isScanning = true;
-        let currentMode = "barcode";
-        let videoElement = null;
+    let code1 = null;
+    let code2 = null;
+    let isScanning = true;
+    let currentMode = "barcode";
+    let videoElement = null;
 
-//=============================
-// DOM取得
-//=============================
+    // ZXing Reader インスタンス
+    let codeReader = null;
 
-const guide = document.querySelector(".scan-area-guide");
+    // DOM取得
+    const guide = document.querySelector(".scan-area-guide");
+    const scanResult = document.getElementById("scan-result");
+    const box1 = document.getElementById("box1");
+    const box2 = document.getElementById("box2");
+    const code1Label = document.getElementById("code1");
+    const code2Label = document.getElementById("code2");
+    const ocrCanvas = document.getElementById("ocr-canvas");
+    const ocrReadBtn = document.getElementById("ocr-read-btn");
+    const ocrModeBtn = document.getElementById("ocr-mode-btn");
+    const barcodeModeBtn = document.getElementById("barcode-mode-btn");
+    const flyingCode = document.getElementById("flying-code");
+    const historyBtn = document.getElementById("history-btn");
+    const historyArea = document.getElementById("history-area");
+    const clearHistoryBtn = document.getElementById("clear-history-btn");
+    const resetBtn = document.getElementById("reset-btn");
+    const csvBtn = document.getElementById("csv-btn");
 
-const scanResult = document.getElementById("scan-result");
+    // OCR誤読防止バッファ設定
+    let ocrBuffer = [];
+    const OCR_REQUIRED_MATCH = 3;
 
-const box1 = document.getElementById("box1");
+    // 誤読防止バッファ設定（バーコード・QR共通）
+    let detectionBuffer = [];
+    let lengthHistory = []; 
+    const REQUIRED_CONSISTENT_READS = 7; 
 
-const box2 = document.getElementById("box2");
+    // 音声ファイル
+    const audioScan = new Audio('scan.mp3');
+    const audioMatch = new Audio('pingpong.mp3');
+    const audioMismatch = new Audio('boo.mp3');
 
-const code1Label = document.getElementById("code1");
-
-const code2Label = document.getElementById("code2");
-
-const ocrCanvas = document.getElementById("ocr-canvas");
-
-const ocrReadBtn = document.getElementById("ocr-read-btn");
-
-const ocrModeBtn = document.getElementById("ocr-mode-btn");
-
-const barcodeModeBtn = document.getElementById("barcode-mode-btn");
-
-const flyingCode = document.getElementById("flying-code");
-
-const historyBtn = document.getElementById("history-btn");
-
-const historyArea = document.getElementById("history-area");
-
-const clearHistoryBtn = document.getElementById("clear-history-btn");
-
-const resetBtn = document.getElementById("reset-btn");
-
-const csvBtn = document.getElementById("csv-btn");
-
-
-// OCR一致確認用
-        let ocrBuffer = [];
-        const OCR_REQUIRED_MATCH = 3;
-
-// 誤読防止バッファ設定
-        let detectionBuffer = [];
-        let lengthHistory = []; 
-        const REQUIRED_CONSISTENT_READS = 7; 
-
-// 各種mp3オーディオファイルの読み込み設定
-        const audioScan = new Audio('scan.mp3');
-        const audioMatch = new Audio('pingpong.mp3');
-        const audioMismatch = new Audio('boo.mp3');
-
-// iPhone（iOS）の制限を突破するための処理
-document.getElementById('start-audio-btn').addEventListener('click', function () {
-
-    audioScan.play().then(() => {
-        audioScan.pause();
-        audioScan.currentTime = 0;
+    // iOS/iPadOS 音声制限解放
+    document.getElementById('start-audio-btn').addEventListener('click', function () {
+        audioScan.play().then(() => { audioScan.pause(); audioScan.currentTime = 0; });
+        audioMatch.play().then(() => { audioMatch.pause(); audioMatch.currentTime = 0; });
+        audioMismatch.play().then(() => { audioMismatch.pause(); audioMismatch.currentTime = 0; });
+        this.style.display = "none";
     });
 
-    audioMatch.play().then(() => {
-        audioMatch.pause();
-        audioMatch.currentTime = 0;
-    });
-
-    audioMismatch.play().then(() => {
-        audioMismatch.pause();
-        audioMismatch.currentTime = 0;
-    });
-
-    this.style.display = "none";
-
-});
-
-        // 音声再生用の共通関数
-        function playSound(audioObject, callback) {
-            try {
-                audioObject.currentTime = 0;
-                audioObject.onended = null;
-                
-                if (callback) {
-                    audioObject.onended = callback;
-                }
-
-                const playPromise = audioObject.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch(error => {
-                        console.error("再生がブロックされました。", error);
-                        if (callback) callback();
-                    });
-                }
-            } catch (e) {
-                console.error("音声の再生エラー:", e);
-                if (callback) callback();
+    function playSound(audioObject, callback) {
+        try {
+            audioObject.currentTime = 0;
+            audioObject.onended = null;
+            if (callback) audioObject.onended = callback;
+            const playPromise = audioObject.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.error("再生ブロック:", error);
+                    if (callback) callback();
+                });
             }
+        } catch (e) {
+            console.error("音声エラー:", e);
+            if (callback) callback();
         }
+    }
 
-function flyBarcodeText(text, targetId){
+    function flyBarcodeText(text, targetId){
+        const fly = flyingCode;
+        const target = document.getElementById(targetId);
+        fly.innerText = text;
 
-    const fly = flyingCode;
-    const target = document.getElementById(targetId);
+        const rect = target.getBoundingClientRect();
+        const guideRect = guide.getBoundingClientRect();
 
-    fly.innerText = text;
+        fly.style.left = (guideRect.left + guideRect.width / 2) + "px";
+        fly.style.top  = (guideRect.top + guideRect.height / 2) + "px";
 
-    const rect = target.getBoundingClientRect();
+        fly.style.opacity = "1";
+        fly.style.transition = "none";
+        fly.style.transform = "translate(-50%,-50%) scale(1)";
 
-    // 開始位置
-const guideRect = guide.getBoundingClientRect();
+        void fly.offsetWidth;
 
-fly.style.left = (guideRect.left + guideRect.width / 2) + "px";
-fly.style.top  = (guideRect.top + guideRect.height / 2) + "px";
+        fly.style.transition = "all .8s ease";
+        fly.style.left = rect.left + rect.width/2 + "px";
+        fly.style.top  = rect.top  + rect.height/2 + "px";
+        fly.style.transform = "translate(-50%,-50%) scale(.25)";
+        fly.style.opacity = "0";
+    }
 
-    fly.style.opacity = "1";
-    fly.style.transition = "none";
-    fly.style.transform = "translate(-50%,-50%) scale(1)";
+    function setCode(targetNo, text){
+        const box = targetNo === 1 ? box1 : box2;
+        const label = targetNo === 1 ? code1Label : code2Label;
 
-    void fly.offsetWidth;
+        box.classList.add("filled");
+        flyBarcodeText(text, "box" + targetNo);
 
-    // 終了位置
-    fly.style.transition = "all .8s ease";
+        setTimeout(() => { playSound(audioScan); }, 250);
+        setTimeout(() => { label.innerText = text; }, 800);
+    }
 
-    fly.style.left = rect.left + rect.width/2 + "px";
-    fly.style.top  = rect.top  + rect.height/2 + "px";
+    // ==========================================
+    // ZXing スキャナー初期化・開始関数
+    // ==========================================
+    async function startBarcodeScanner() {
+        videoElement = document.getElementById("video-element");
+        codeReader = new ZXing.BrowserMultiFormatReader();
 
-    fly.style.transform = "translate(-50%,-50%) scale(.25)";
-    fly.style.opacity = "0";
-}
-
-//=============================
-// 読み取り結果表示
-//=============================
-function setCode(targetNo, text){
-
-    const box =
-        targetNo === 1 ? box1 : box2;
-
-    const label =
-        targetNo === 1 ? code1Label : code2Label;
-
-    box.classList.add("filled");
-
-    flyBarcodeText(text, "box" + targetNo);
-
-    setTimeout(() => {
-        playSound(audioScan);
-    },250);
-
-    setTimeout(() => {
-        label.innerText = text;
-    },800);
-
-}
-
-//=============================
-// バーコードスキャナー開始
-//=============================
-function startBarcodeScanner(){
-
-    Quagga.init({
-        inputStream: {
-            name: "Live",
-            type: "LiveStream",
-            target: document.querySelector('#interactive'),
-
-            constraints: {
-                width: { ideal: 1920 },
-                height: { ideal: 1080 },
-                facingMode: "environment",
-                focusMode: "continuous"
-            },
-
-            area: {
-                top: "25%",
-                bottom: "25%",
-                left: "10%",
-                right: "10%"
+        try {
+            const videoInputDevices = await codeReader.listVideoInputDevices();
+            
+            // 背面カメラ（environment）優先選択
+            let selectedDeviceId = videoInputDevices[0]?.deviceId;
+            const backCamera = videoInputDevices.find(device => 
+                /back|rear|environment/i.test(device.label)
+            );
+            if (backCamera) {
+                selectedDeviceId = backCamera.deviceId;
             }
-        },
 
-        locator: {
-            patchSize: "medium",
-            halfSample: true
-        },
+            // スキャンループ開始
+            codeReader.decodeFromVideoDevice(selectedDeviceId, 'video-element', (result, err) => {
+                if (result) {
+                    handleBarcodeDetected(result.getText());
+                }
+            });
+        } catch (err) {
+            console.error("ZXing起動エラー:", err);
+            alert("カメラの起動に失敗しました。カメラアクセス権限を確認してください。");
+        }
+    }
 
-        decoder: {
-            readers: [
-                "ean_reader",
-                "code_128_reader",
-                "code_39_reader"
-            ]
-        },
+    startBarcodeScanner();
 
-        locate: false
+    // ==========================================
+    // コード・QR検出共通処理
+    // ==========================================
+    function handleBarcodeDetected(codeStr) {
+        if (currentMode !== "barcode") return;
+        if (!isScanning) return;
+        if (!codeStr) return;
 
-    }, function(err){
+        console.log("検出コード:", codeStr);
 
-        if(err){
-            console.error(err);
-            alert("カメラの起動に失敗しました。");
+        // 誤読防止バッファ処理
+        lengthHistory.push(codeStr.length);
+        if (lengthHistory.length > 10) lengthHistory.shift();
+        const maxLength = Math.max(...lengthHistory);
+        if (codeStr.length < maxLength) return;
+
+        detectionBuffer.push(codeStr);
+        if (detectionBuffer.length < REQUIRED_CONSISTENT_READS) return;
+
+        const allMatch = detectionBuffer.every(val => val === codeStr);
+        if (!allMatch) {
+            detectionBuffer.shift();
             return;
         }
 
-        Quagga.start();
+        const confirmedCode = detectionBuffer[0];
+        detectionBuffer = [];
+        lengthHistory = []; 
 
-        videoElement = document.querySelector("#interactive video");
+        if (!code1) {
+            isScanning = false;
+            code1 = confirmedCode;
+            setCode(1, confirmedCode);
+            setTimeout(() => { isScanning = true; }, 2000);
+        } else if (!code2) {
+            code2 = confirmedCode;
+            setCode(2, confirmedCode);
+            setTimeout(() => { checkMatch(); }, 800);
+            isScanning = false;
+        }
+    }
 
-    });
+    // ==========================================
+    // 照合判定
+    // ==========================================
+    function checkMatch() {
+        const result = scanResult;
+        const scanGuide = guide;
 
-}
+        const compare1 = (code1 || "").replace(/\s/g, "");
+        const compare2 = (code2 || "").replace(/\s/g, "");
 
-startBarcodeScanner();
+        if (compare1 === compare2) {
+            result.className = "ok";
+            result.innerText = "OK";
+            box1.classList.remove("mismatch");
+            box2.classList.remove("mismatch");
+            box1.classList.add("match");
+            box2.classList.add("match");
+            scanGuide.classList.remove("ng");
 
-//=============================
-// バーコード検出イベント
-//=============================
-Quagga.onDetected(function(data){
+            playSound(audioMatch);
+            saveHistory(code1, code2, "OK");
+        } else {
+            result.className = "ng";
+            result.innerText = "NG";
+            box1.classList.remove("match");
+            box2.classList.remove("match");
+            box1.classList.add("mismatch");
+            box2.classList.add("mismatch");
+            scanGuide.classList.add("ng");
 
-    handleBarcodeDetected(data);
+            playSound(audioMismatch);
+            saveHistory(code1, code2, "NG");
+        }
+    }
 
-});
+    function showOcrError(){
+        const oldClass = scanResult.className;
+        const oldText = scanResult.innerText;
 
-//=============================
-// バーコード検出処理
-//=============================
-function handleBarcodeDetected(data){
-
-    console.log("バーコード検出:", data.codeResult.code);
-
-    // OCRモードではバーコードを無視
-    if (currentMode !== "barcode") return;
-
-    if (!isScanning) return;
-    if (data.codeResult.error && data.codeResult.error > 0.05) return;
-
-    const code = data.codeResult.code;
-    if (!code) return;
-
-            lengthHistory.push(code.length);
-            if (lengthHistory.length > 10) lengthHistory.shift();
-            const maxLength = Math.max(...lengthHistory);
-            if (code.length < maxLength) return;
-
-            detectionBuffer.push(code);
-            if (detectionBuffer.length < REQUIRED_CONSISTENT_READS) return;
-
-            const allMatch = detectionBuffer.every(val => val === code);
-            if (!allMatch) {
-                detectionBuffer.shift();
-                return;
-            }
-
-            const confirmedCode = detectionBuffer[0];
-            detectionBuffer = [];
-            lengthHistory = []; 
-
-if (!code1) {
-
-    isScanning = false;
-
-    code1 = confirmedCode;
-
-    setCode(1, confirmedCode);
-
-    setTimeout(() => {
-
-        isScanning = true;
-
-    },2000);
-
-}
-
-else if (!code2) {
-
-    code2 = confirmedCode;
-
-    setCode(2, confirmedCode);
-
-    setTimeout(() => {
-
-        checkMatch();
-
-    },800);
-
-    isScanning = false;
-
-}
-
-} 
-
-//=============================
-// 照合判定
-//=============================
-function checkMatch() {
-
-    const result = scanResult;
-    const scanGuide = guide;
-
-    // OCRでは空白を無視して比較
-    const compare1 = (code1 || "").replace(/\s/g, "");
-    const compare2 = (code2 || "").replace(/\s/g, "");
-
-    if(compare1 === compare2){
-
-        result.className = "ok";
-        result.innerText = "OK";
-
-        box1.classList.remove("mismatch");
-        box2.classList.remove("mismatch");
-
-        box1.classList.add("match");
-        box2.classList.add("match");
-
-        // 枠・レーザーを緑
-        scanGuide.classList.remove("ng");
-
-        playSound(audioMatch);
-
-        saveHistory(code1, code2, "OK");
-
-    }else{
-
-        result.className = "ng";
-        result.innerText = "NG";
-
-        box1.classList.remove("match");
-        box2.classList.remove("match");
-
-        box1.classList.add("mismatch");
-        box2.classList.add("mismatch");
-
-        // 枠・レーザーを赤
-        scanGuide.classList.add("ng");
+        guide.classList.add("ng");
+        scanResult.className = "ocr-error";
+        scanResult.innerText = "読み取れません";
 
         playSound(audioMismatch);
 
-        saveHistory(code1, code2, "NG");
+        setTimeout(function(){
+            if(oldClass === "ng"){
+                guide.classList.add("ng");
+            } else {
+                guide.classList.remove("ng");
+            }
 
+            if(oldClass === "ok" || oldClass === "ng"){
+                scanResult.className = oldClass;
+                scanResult.innerText = oldText;
+            } else {
+                scanResult.className = "";
+                scanResult.innerText = "";
+            }
+        }, 1500);
     }
 
-}
+    function saveHistory(c1, c2, res){
+        const history = JSON.parse(localStorage.getItem("barcodeHistory") || "[]");
+        history.unshift({
+            datetime: new Date().toLocaleString("ja-JP"),
+            code1: c1,
+            code2: c2,
+            result: res
+        });
 
-//=============================
-// OCR読み取り失敗表示
-//=============================
-function showOcrError(){
+        if(history.length > 500) history.pop();
 
+        localStorage.setItem("barcodeHistory", JSON.stringify(history));
+        updateHistoryDisplay();
+    }
 
- // 現在表示中のOK/NGを保存
-    const oldClass = scanResult.className;
-    const oldText = scanResult.innerText;
-    
-    guide.classList.add("ng");
+    // リセット処理
+    resetBtn.addEventListener('click', function () {
+        code1 = null;
+        code2 = null;
+        isScanning = true;
 
-    scanResult.className = "ocr-error";
-    scanResult.innerText = "読み取れません";
+        detectionBuffer = [];
+        lengthHistory = [];
 
-    playSound(audioMismatch);
+        code1Label.innerText = "-";
+        code2Label.innerText = "-";
 
-setTimeout(function(){
+        scanResult.className = "";
+        scanResult.innerText = "";
 
-    if(oldClass === "ng"){
-
-        // NGだったら赤枠に戻す
-        guide.classList.add("ng");
-
-    }else{
-
-        // OKまたは何も表示していなかった場合は緑枠
+        box1.className = "code-display";
+        box2.className = "code-display";
         guide.classList.remove("ng");
 
-    }
-
-    if(oldClass === "ok" || oldClass === "ng"){
-
-        result.className = oldClass;
-        result.innerText = oldText;
-
-    }else{
-
-        result.className = "";
-        result.innerText = "";
-
-    }
-
-    },1500);
-
-}
-
-//=============================
-// 履歴保存
-//=============================
-function saveHistory(code1, code2, result){
-
-    const history = JSON.parse(localStorage.getItem("barcodeHistory") || "[]");
-
-    history.unshift({
-        datetime: new Date().toLocaleString("ja-JP"),
-        code1: code1,
-        code2: code2,
-        result: result
+        const canvas = ocrCanvas;
+        const ocrCtx = ocrCanvas.getContext("2d");
+        ocrCtx.clearRect(0, 0, ocrCanvas.width, ocrCanvas.height);
+        ocrCanvas.style.display = "none";
+        ocrCanvas.width = 0;
+        ocrCanvas.height = 0;
     });
 
-    // 最大500件保存
-    if(history.length > 500){
-        history.pop();
-    }
-
-    localStorage.setItem("barcodeHistory", JSON.stringify(history));
-
-    // 履歴表示中なら自動更新
-    updateHistoryDisplay();
-}
-
-//=============================
-// リセット処理
-//=============================
-resetBtn.addEventListener('click', function () {    code1 = null;
-
-    code2 = null;
-    isScanning = true;
-
-    detectionBuffer = [];
-    lengthHistory = [];
-
-    code1Label.innerText = "-";
-    code2Label.innerText = "-";
-
-    // OK・NG表示を消す
-    scanResult.className = "";
-    scanResult.innerText = "";
-
-    // ボックスの色を元に戻す
-    box1.className = "code-display";
-    box2.className = "code-display";
-
-    // スキャン枠を緑に戻す
-    guide.classList.remove("ng");
-
-    // =============================
-    // OCR画像を消す
-    // =============================
-    const canvas = ocrCanvas;
-    const ocrCtx = ocrCanvas.getContext("2d");
-
-    ocrCtx.clearRect(0, 0, ocrCanvas.width, ocrCanvas.height);
-    ocrCanvas.style.display = "none";
-    ocrCanvas.width = 0;
-    ocrCanvas.height = 0;
-
-});
-
-
-//=============================
-// 履歴表示
-//=============================
-
-historyBtn.addEventListener("click", function(){
-
-    if(getComputedStyle(historyArea).display === "none"){
-
-        historyArea.style.display = "block";
-        updateHistoryDisplay();
-
-    }else{
-
-        historyArea.style.display = "none";
-
-    }
-
-});
-
-function updateHistoryDisplay(){
-
-    const area = historyArea;
-
-    // 閉じているときは更新しない
-    if(getComputedStyle(area).display === "none"){
-        return;
-    }
-
-    const history = JSON.parse(localStorage.getItem("barcodeHistory") || "[]");
-
-    let html = "";
-
-history.forEach((item,index) => {
-
-    const resultClass =
-        item.result === "OK"
-        ? "history-ok"
-        : "history-ng";
-
-    const itemClass =
-        item.result === "OK"
-        ? "ok"
-        : "ng";
-
-    const newClass =
-        index === 0
-        ? "new"
-        : "";
-
-    html +=
-        "<div class='history-item " + itemClass + " " + newClass + "'>"
-        + "<b>" + item.datetime + "</b><br>"
-        + "① " + item.code1 + "<br>"
-        + "② " + item.code2 + "<br>"
-        + "結果：<span class='" + resultClass + "'>" + item.result + "</span>"
-        + "</div>";
-});
-
-    if(history.length === 0){
-        html = "履歴はありません";
-    }
-
-    area.innerHTML = html;
-
-    // 一番上へスクロール
-    area.scrollTop = 0;
-
-}
-
-//=============================
-// CSV出力
-//=============================
-
-    csvBtn.addEventListener("click",function(){
-
-    const history=JSON.parse(localStorage.getItem("barcodeHistory") || "[]");
-
-    let csv="日時,バーコード1,バーコード2,結果\n";
-
-    history.forEach(item=>{
-
-        csv += `"${item.datetime}","${item.code1}","${item.code2}","${item.result}"\n`;
-
+    // 履歴表示
+    historyBtn.addEventListener("click", function(){
+        if(getComputedStyle(historyArea).display === "none"){
+            historyArea.style.display = "block";
+            updateHistoryDisplay();
+        } else {
+            historyArea.style.display = "none";
+        }
     });
 
-    const bom=new Uint8Array([0xEF,0xBB,0xBF]);
+    function updateHistoryDisplay(){
+        const area = historyArea;
+        if(getComputedStyle(area).display === "none") return;
 
-    const blob=new Blob([bom,csv],{type:"text/csv"});
+        const history = JSON.parse(localStorage.getItem("barcodeHistory") || "[]");
+        let html = "";
 
-    const a=document.createElement("a");
+        history.forEach((item, index) => {
+            const resultClass = item.result === "OK" ? "history-ok" : "history-ng";
+            const itemClass = item.result === "OK" ? "ok" : "ng";
+            const newClass = index === 0 ? "new" : "";
 
-    a.href=URL.createObjectURL(blob);
+            html += `<div class='history-item ${itemClass} ${newClass}'>`
+                 + `<b>${item.datetime}</b><br>`
+                 + `① ${item.code1}<br>`
+                 + `② ${item.code2}<br>`
+                 + `結果：<span class='${resultClass}'>${item.result}</span>`
+                 + `</div>`;
+        });
 
-    a.download="barcode_history.csv";
+        if(history.length === 0) html = "履歴はありません";
+        area.innerHTML = html;
+        area.scrollTop = 0;
+    }
 
-    a.click();
+    // CSV出力
+    csvBtn.addEventListener("click", function(){
+        const history = JSON.parse(localStorage.getItem("barcodeHistory") || "[]");
+        let csv = "日時,コード1,コード2,結果\n";
+        history.forEach(item => {
+            csv += `"${item.datetime}","${item.code1}","${item.code2}","${item.result}"\n`;
+        });
 
-});
+        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+        const blob = new Blob([bom, csv], {type: "text/csv"});
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "barcode_history.csv";
+        a.click();
+    });
 
-//=============================
-// 履歴全削除
-//=============================
-
+    // 履歴削除
     clearHistoryBtn.addEventListener("click", function(){
+        localStorage.removeItem("barcodeHistory");
+        updateHistoryDisplay();
+    });
 
-    localStorage.removeItem("barcodeHistory");
+    // モード切替
+    barcodeModeBtn.addEventListener("click", function () {
+        currentMode = "barcode";
+        ocrReadBtn.style.display = "none";
+        document.body.style.paddingBottom = "0px";
 
-    updateHistoryDisplay();
+        this.classList.add("mode-active");
+        ocrModeBtn.classList.remove("mode-active");
 
-});
+        document.querySelector("p").innerText = "緑の枠内にコードまたはQRを合わせてください";
+        guide.classList.remove("ocr-mode");
 
-//=============================
-// モード切替
-//=============================
+        isScanning = true;
+        detectionBuffer = [];
+        lengthHistory = [];
+    });
 
-barcodeModeBtn.addEventListener("click", function () {
+    ocrModeBtn.addEventListener("click", function(){
+        currentMode = "ocr";
+        ocrReadBtn.style.display = "block";
+        document.body.style.paddingBottom = "90px";
 
-    currentMode = "barcode";
+        this.classList.add("mode-active");
+        barcodeModeBtn.classList.remove("mode-active");
 
-    // OCRボタンを隠す
-    ocrReadBtn.style.display = "none";
-
-    document.body.style.paddingBottom = "0px";
-
-    // ボタン表示切替
-    this.classList.add("mode-active");
-    ocrModeBtn.classList.remove("mode-active");
-
-    // 説明文
-    document.querySelector("p").innerText = "緑の枠内にバーコードを合わせてください";
-
-    // スキャン枠をバーコード用に戻す
-    const guide = document.querySelector(".scan-area-guide");
-    guide.classList.remove("ocr-mode");
-
-    // バーコード読取再開
-    isScanning = true;
-
-    // 誤読防止バッファを初期化
-    detectionBuffer = [];
-    lengthHistory = [];
-
-});
-
-    ocrModeBtn.addEventListener("click",function(){
-
-    currentMode="ocr";
-
-    ocrReadBtn.style.display="block";
-
-    document.body.style.paddingBottom = "90px";
-
-    this.classList.add("mode-active");
-
-    barcodeModeBtn.classList.remove("mode-active");
-
-    document.querySelector("p").innerText="緑の枠内に文字を合わせてください";
-
-    document.querySelector(".scan-area-guide").classList.add("ocr-mode");
-
-});
+        document.querySelector("p").innerText = "緑の枠内に文字を合わせてください";
+        guide.classList.add("ocr-mode");
+    });
 
     document.getElementById("barcode-mode-btn").classList.add("mode-active");
 
+    // OCR読み取り実行
     ocrReadBtn.addEventListener("click", async function(){
-
-    this.disabled = true;
-    this.innerText = "読取中...";
-
-    this.style.background = "#ff9800";
-    this.style.boxShadow = "0 5px 0 #c66900";
-    this.style.cursor = "wait";
-    try {
-
-    // OCR中はバーコード読取停止
-    isScanning = false;
-   
-
-// videoが無ければ取得
-    if(!videoElement){
-        videoElement = document.querySelector("#interactive video");
-}
-
-    if(!videoElement){
-
-        alert("カメラが準備できていません");
-
-        this.disabled = false;
-        this.innerText = "文字を読み取る";
-
-        return;
-
-    }
-
-    const canvas = ocrCanvas;
-    const ctx = canvas.getContext("2d");
-
-// カメラ映像サイズ
-    const vw = videoElement.videoWidth;
-    const vh = videoElement.videoHeight;
-
-// 緑枠の位置を取得
-    const guideRect = guide.getBoundingClientRect();
-
-    const videoRect = videoElement.getBoundingClientRect();
-
-// ===== object-fit: cover対応 =====
-const scale = Math.max(
-    videoRect.width / vw,
-    videoRect.height / vh
-);
-
-const displayWidth = vw * scale;
-const displayHeight = vh * scale;
-
-const offsetX = (displayWidth - videoRect.width) / 2;
-const offsetY = (displayHeight - videoRect.height) / 2;
-
-const sx =
-    ((guideRect.left - videoRect.left) + offsetX) / scale;
-
-const sy =
-    ((guideRect.top - videoRect.top) + offsetY) / scale;
-
-const sw =
-    guideRect.width / scale;
-
-const sh =
-    guideRect.height / scale;
-        
-// OCR用Canvas
-    canvas.width = Math.round(sw);
-    canvas.height = Math.round(sh);
-
-// 表示サイズ（緑枠と同じ大きさ）
-    canvas.style.maxWidth = "none";
-    canvas.style.maxWidth = guideRect.width + "px";
-    canvas.style.width = "100%";
-    canvas.style.height = "auto";
-    canvas.style.display = "block";
-    canvas.style.border = "3px solid red";
-    canvas.style.margin = "20px auto";
-
-// 滑らかに表示
-    ctx.imageSmoothingEnabled = true;
-
-    ctx.filter = "contrast(180%) brightness(110%)";
-
-// 緑枠だけ切り抜く
-    ctx.drawImage(
-        videoElement,
-        sx,
-        sy,
-        sw,
-        sh,
-        0,
-        0,
-        canvas.width,
-        canvas.height
-    );
-
-
-// ===== OCR用画像前処理 =====
-
-    let imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
-    let data = imageData.data;
-
-// 画像全体の明るさを計算
-    let total = 0;
-
-    for(let i = 0; i < data.length; i += 4){
-
-    total +=
-        data[i] * 0.299 +
-        data[i+1] * 0.587 +
-        data[i+2] * 0.114;
-
-}
-
-// 平均の明るさをしきい値にする
-   const threshold = total / (data.length / 4);
-
-// 二値化
-    for(let i = 0; i < data.length; i += 4){
-
-    const gray =
-        data[i] * 0.299 +
-        data[i+1] * 0.587 +
-        data[i+2] * 0.114;
-
-    const value = gray > threshold ? 255 : 0;
-
-    data[i] = value;
-    data[i+1] = value;
-    data[i+2] = value;
-
-}
-
-    ctx.putImageData(imageData,0,0);
-
-// OCRしやすいように2倍へ拡大
-    const tempCanvas = document.createElement("canvas");
-    const tempCtx = tempCanvas.getContext("2d");
-
-    tempCanvas.width = canvas.width * 2;
-    tempCanvas.height = canvas.height * 2;
-
-    tempCtx.imageSmoothingEnabled = false;
-
-    tempCtx.drawImage(
-        canvas,
-        0,
-        0,
-        tempCanvas.width,
-        tempCanvas.height
-    );
-
-// ===== OCR開始 =====
-
-    const result = await Tesseract.recognize(
-    tempCanvas,
-    "jpn",
-    {
-        logger: m => console.log(m),
-
-        tessedit_do_invert: "0",
-
-        tessedit_pageseg_mode: 7,
-
-        preserve_interword_spaces: "1",
-
-        user_defined_dpi: "300"
-    }
-);
-
-    if (videoElement) {
-        videoElement.play().catch(() => {});
-}     
-        
-let text = result.data.text;
-
-// 全角スペースへ統一
-    text = text.replace(/ /g,"　");
-
-// OCRがよく間違える文字
-    text = text.replace(/エ/g,"工");
-    text = text.replace(/ロ/g,"口");
-    text = text.replace(/ー/g,"一");
-
-// OCR結果を整形
-    text = text.replace(/\n/g, " ");
-    text = text.replace(/\s+/g, " ");
-    text = text.trim();
-
-
-// OCR信頼度
-    const confidence = result.data.confidence;
-
-    console.log("信頼度:", confidence);
-
-    console.log("OCR結果:", text);
-
-// ==============================
-// OCR結果の自動補正（氏名専用）
-// ==============================
-
-// 全角スペース→半角スペース
-    text = text.replace(/　/g, " ");
-
-// 空白を1つに
-    text = text.replace(/\s+/g, " ");
-
-// 前後の空白削除
-    text = text.trim();
-
-// 漢字・ひらがな・カタカナ・スペースだけ残す
-    text = text.replace(/[^\u3040-\u30FF\u4E00-\u9FFF ]/g, "");
-
-// 点や記号を削除
-    text = text.replace(/[・.,，。、'"`´]/g, "");
-
-// 空白整理
-    text = text.replace(/\s+/g, " ").trim();
-
-// 「様」までで切る
-    const index = text.indexOf("様");
-    if (index !== -1) {
-        text = text.substring(0, index + 1);
-}
-
-// 「様」を削除
-    text = text.replace(/様/g, "");
-// 「機」を削除
-    text = text.replace(/機/g, "");
-// 「欄」を削除
-    text = text.replace(/欄/g, "");
-
-
-// ==============================
-// 氏名表示を見やすく補正
-// ==============================
-
-// 空白を削除
-    text = text.replace(/\s/g, "");
-
-// OCRで混入しやすい不要文字を除去
-    text = text.replace(/[|｜!！:：;；\[\]\(\)（）{}｛｝]/g, "");
-
-// 前後の不要な「一」を除去
-    text = text.replace(/^一+/, "");
-    text = text.replace(/一+$/, "");
-
-// 前後の不要な「-」を除去
-    text = text.replace(/^-+/, "");
-    text = text.replace(/-+$/, "");
-        
-// 最大8文字に制限
-    text = text.substring(0, 8);
-
-
-    console.log("OCR結果:", text);
-
-if(text===""){
-
-    showOcrError();
-
-    videoElement.play().catch(()=>{});
-
-    this.disabled = false;
-    this.innerText = "文字を読み取る";
-
-    return;
-
-}
-
-// 信頼度が低い場合
-    if(confidence < 50){
-
-        showOcrError();
-
-        videoElement.play().catch(()=>{});
-
-        this.disabled = false;
-        this.innerText = "文字を読み取る";
-
-        return;
-
-}
-
-// ===== OCR結果を表示 =====
-
-if(!code1){
-
-    code1 = text;
-
-    setCode(1, text);
-}
-
-else if(!code2){
-
-    code2 = text;
-
-setCode(2, text);
-
-setTimeout(() => {
-
-    checkMatch();
-
-},800);
-
-}
-
-}
-catch(error){
-    
-    alert(error);
-    
-    console.error(error);
-
-    showOcrError();
-
-}
-
-finally{
-
-// OCR画像を1秒後に消す
-    setTimeout(function(){
-
-        const canvas = ocrCanvas;
-
-        if(canvas){
-
-            const ctx = canvas.getContext("2d", {
-    willReadFrequently: true
-});
-
-            ctx.clearRect(0,0,canvas.width,canvas.height);
-
-            canvas.style.display = "none";
-
-            canvas.width = 0;
-            canvas.height = 0;
-
+        this.disabled = true;
+        this.innerText = "読取中...";
+        this.style.background = "#ff9800";
+        this.style.boxShadow = "0 5px 0 #c66900";
+        this.style.cursor = "wait";
+
+        try {
+            isScanning = false;
+            if(!videoElement) videoElement = document.querySelector("#interactive video");
+
+            if(!videoElement){
+                alert("カメラが準備できていません");
+                return;
+            }
+
+            const canvas = ocrCanvas;
+            const ctx = canvas.getContext("2d");
+
+            const vw = videoElement.videoWidth;
+            const vh = videoElement.videoHeight;
+            const guideRect = guide.getBoundingClientRect();
+            const videoRect = videoElement.getBoundingClientRect();
+
+            const scale = Math.max(videoRect.width / vw, videoRect.height / vh);
+            const displayWidth = vw * scale;
+            const displayHeight = vh * scale;
+
+            const offsetX = (displayWidth - videoRect.width) / 2;
+            const offsetY = (displayHeight - videoRect.height) / 2;
+
+            const sx = ((guideRect.left - videoRect.left) + offsetX) / scale;
+            const sy = ((guideRect.top - videoRect.top) + offsetY) / scale;
+            const sw = guideRect.width / scale;
+            const sh = guideRect.height / scale;
+                
+            canvas.width = Math.round(sw);
+            canvas.height = Math.round(sh);
+
+            canvas.style.maxWidth = guideRect.width + "px";
+            canvas.style.width = "100%";
+            canvas.style.height = "auto";
+            canvas.style.display = "block";
+            canvas.style.border = "3px solid red";
+            canvas.style.margin = "20px auto";
+
+            ctx.imageSmoothingEnabled = true;
+            ctx.filter = "contrast(180%) brightness(110%)";
+
+            ctx.drawImage(videoElement, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+            // 前処理（二値化）
+            let imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
+            let data = imageData.data;
+            let total = 0;
+
+            for(let i = 0; i < data.length; i += 4){
+                total += data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
+            }
+
+            const threshold = total / (data.length / 4);
+
+            for(let i = 0; i < data.length; i += 4){
+                const gray = data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
+                const value = gray > threshold ? 255 : 0;
+                data[i] = value; data[i+1] = value; data[i+2] = value;
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+
+            // 拡大処理
+            const tempCanvas = document.createElement("canvas");
+            const tempCtx = tempCanvas.getContext("2d");
+            tempCanvas.width = canvas.width * 2;
+            tempCanvas.height = canvas.height * 2;
+            tempCtx.imageSmoothingEnabled = false;
+            tempCtx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height);
+
+            const result = await Tesseract.recognize(
+                tempCanvas,
+                "jpn",
+                {
+                    logger: m => console.log(m),
+                    tessedit_do_invert: "0",
+                    tessedit_pageseg_mode: 7,
+                    preserve_interword_spaces: "1",
+                    user_defined_dpi: "300"
+                }
+            );
+
+            if (videoElement) videoElement.play().catch(() => {});
+                
+            let text = result.data.text;
+            text = text.replace(/ /g," ");
+            text = text.replace(/エ/g,"工").replace(/ロ/g,"口").replace(/ー/g,"一");
+            text = text.replace(/\n/g, " ").replace(/\s+/g, " ").trim();
+
+            const confidence = result.data.confidence;
+
+            text = text.replace(/ /g, " ").replace(/\s+/g, " ").trim();
+            text = text.replace(/[^\u3040-\u30FF\u4E00-\u9FFF ]/g, "");
+            text = text.replace(/[・.,，。、'"`´]/g, "");
+            text = text.replace(/\s+/g, " ").trim();
+
+            const index = text.indexOf("様");
+            if (index !== -1) text = text.substring(0, index + 1);
+
+            text = text.replace(/様/g, "").replace(/機/g, "").replace(/欄/g, "");
+            text = text.replace(/\s/g, "");
+            text = text.replace(/[|｜!！:：;；\[\]\(\)（）{}｛｝]/g, "");
+            text = text.replace(/^一+/, "").replace(/一+$/, "");
+            text = text.replace(/^-+/, "").replace(/-+$/, "");
+            text = text.substring(0, 8);
+
+            console.log("OCR最終結果:", text);
+
+            if (text === "" || confidence < 50) {
+                showOcrError();
+                return;
+            }
+
+            if(!code1){
+                code1 = text;
+                setCode(1, text);
+            } else if(!code2){
+                code2 = text;
+                setCode(2, text);
+                setTimeout(() => { checkMatch(); }, 800);
+            }
+
+        } catch(error) {
+            console.error(error);
+            showOcrError();
+        } finally {
+            setTimeout(function(){
+                const canvas = ocrCanvas;
+                if(canvas){
+                    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+                    ctx.clearRect(0,0,canvas.width,canvas.height);
+                    canvas.style.display = "none";
+                    canvas.width = 0;
+                    canvas.height = 0;
+                }
+            }, 1000);
+
+            isScanning = true;
+            this.disabled = false;
+            this.innerText = "文字を読み取る";
+            this.removeAttribute("style");
+            this.style.display = "block";
         }
-
-    },1000);
-
-    // バーコード読取再開
-    isScanning = true;
-
-    this.disabled = false;
-    this.innerText = "文字を読み取る";
-
-    this.style.background = "";
-    this.style.boxShadow = "";
-    this.style.cursor = "";
-
-}
-
-});
-    
+    });
 </script>
-
 </body>
 </html>
