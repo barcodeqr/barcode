@@ -44,9 +44,9 @@
     #interactive.viewport canvas.drawingBuffer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
 
 #interactive.viewport video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+    width:100%;
+    height:100%;
+    object-fit:cover;
 }
 
 /* 画面中央の緑枠（スキャンエリアガイド） */
@@ -782,21 +782,58 @@ button:active{
         let currentMode = "barcode";
         let videoElement = null;
 
-        // OCR一致確認用
+//=============================
+// DOM取得
+//=============================
+
+const guide = document.querySelector(".scan-area-guide");
+
+const scanResult = document.getElementById("scan-result");
+
+const box1 = document.getElementById("box1");
+
+const box2 = document.getElementById("box2");
+
+const code1Label = document.getElementById("code1");
+
+const code2Label = document.getElementById("code2");
+
+const ocrCanvas = document.getElementById("ocr-canvas");
+
+const ocrReadBtn = document.getElementById("ocr-read-btn");
+
+const ocrModeBtn = document.getElementById("ocr-mode-btn");
+
+const barcodeModeBtn = document.getElementById("barcode-mode-btn");
+
+const flyingCode = document.getElementById("flying-code");
+
+const historyBtn = document.getElementById("history-btn");
+
+const historyArea = document.getElementById("history-area");
+
+const clearHistoryBtn = document.getElementById("clear-history-btn");
+
+const resetBtn = document.getElementById("reset-btn");
+
+const csvBtn = document.getElementById("csv-btn");
+
+
+// OCR一致確認用
         let ocrBuffer = [];
         const OCR_REQUIRED_MATCH = 3;
 
-        // 誤読防止バッファ設定
+// 誤読防止バッファ設定
         let detectionBuffer = [];
         let lengthHistory = []; 
         const REQUIRED_CONSISTENT_READS = 7; 
 
-        // 各種mp3オーディオファイルの読み込み設定
+// 各種mp3オーディオファイルの読み込み設定
         const audioScan = new Audio('scan.mp3');
         const audioMatch = new Audio('pingpong.mp3');
         const audioMismatch = new Audio('boo.mp3');
 
-        // iPhone（iOS）の制限を突破するための処理
+// iPhone（iOS）の制限を突破するための処理
 document.getElementById('start-audio-btn').addEventListener('click', function () {
 
     audioScan.play().then(() => {
@@ -843,7 +880,7 @@ document.getElementById('start-audio-btn').addEventListener('click', function ()
 
 function flyBarcodeText(text, targetId){
 
-    const fly = document.getElementById("flying-code");
+    const fly = flyingCode;
     const target = document.getElementById(targetId);
 
     fly.innerText = text;
@@ -851,7 +888,6 @@ function flyBarcodeText(text, targetId){
     const rect = target.getBoundingClientRect();
 
     // 開始位置
-const guide = document.querySelector(".scan-area-guide");
 const guideRect = guide.getBoundingClientRect();
 
 fly.style.left = (guideRect.left + guideRect.width / 2) + "px";
@@ -873,49 +909,103 @@ fly.style.top  = (guideRect.top + guideRect.height / 2) + "px";
     fly.style.opacity = "0";
 }
 
-        // Quaggaの初期設定
-        Quagga.init({
-            inputStream: {
-                name: "Live",
-                type: "LiveStream",
-                target: document.querySelector('#interactive'),
+//=============================
+// 読み取り結果表示
+//=============================
+function setCode(targetNo, text){
 
-    constraints: {
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-        facingMode: "environment",
-        focusMode: "continuous"
-    },
-                area: {
-                    top: "25%",
-                    bottom: "25%",
-                    left: "10%",
-                    right: "10%"
-                }
+    const box =
+        targetNo === 1 ? box1 : box2;
+
+    const label =
+        targetNo === 1 ? code1Label : code2Label;
+
+    box.classList.add("filled");
+
+    flyBarcodeText(text, "box" + targetNo);
+
+    setTimeout(() => {
+        playSound(audioScan);
+    },250);
+
+    setTimeout(() => {
+        label.innerText = text;
+    },800);
+
+}
+
+//=============================
+// バーコードスキャナー開始
+//=============================
+function startBarcodeScanner(){
+
+    Quagga.init({
+        inputStream: {
+            name: "Live",
+            type: "LiveStream",
+            target: document.querySelector('#interactive'),
+
+            constraints: {
+                width: { ideal: 1920 },
+                height: { ideal: 1080 },
+                facingMode: "environment",
+                focusMode: "continuous"
             },
-            locator: {
-                patchSize: "medium",
-                halfSample: true
-            },
-            decoder: {
-                readers: ["ean_reader", "code_128_reader", "code_39_reader"] 
-            },
-            locate: false
-        }, function(err) {
-            if (err) {
-                console.error(err);
-                alert("カメラの起動に失敗しました。");
-                return;
+
+            area: {
+                top: "25%",
+                bottom: "25%",
+                left: "10%",
+                right: "10%"
             }
+        },
 
-   Quagga.start();
+        locator: {
+            patchSize: "medium",
+            halfSample: true
+        },
 
-   videoElement = document.querySelector("#interactive video");
+        decoder: {
+            readers: [
+                "ean_reader",
+                "code_128_reader",
+                "code_39_reader"
+            ]
+        },
 
-     });
+        locate: false
 
-    // バーコード検出時の処理
-    Quagga.onDetected(function(data) {
+    }, function(err){
+
+        if(err){
+            console.error(err);
+            alert("カメラの起動に失敗しました。");
+            return;
+        }
+
+        Quagga.start();
+
+        videoElement = document.querySelector("#interactive video");
+
+    });
+
+}
+
+startBarcodeScanner();
+
+//=============================
+// バーコード検出イベント
+//=============================
+Quagga.onDetected(function(data){
+
+    handleBarcodeDetected(data);
+
+});
+
+//=============================
+// バーコード検出処理
+//=============================
+function handleBarcodeDetected(data){
 
     console.log("バーコード検出:", data.codeResult.code);
 
@@ -923,10 +1013,10 @@ fly.style.top  = (guideRect.top + guideRect.height / 2) + "px";
     if (currentMode !== "barcode") return;
 
     if (!isScanning) return;
-            if (data.codeResult.error && data.codeResult.error > 0.05) return;
+    if (data.codeResult.error && data.codeResult.error > 0.05) return;
 
-            const code = data.codeResult.code;
-            if (!code) return;
+    const code = data.codeResult.code;
+    if (!code) return;
 
             lengthHistory.push(code.length);
             if (lengthHistory.length > 10) lengthHistory.shift();
@@ -952,17 +1042,7 @@ if (!code1) {
 
     code1 = confirmedCode;
 
-    document.getElementById("box1").classList.add("filled");
-
-    playSound(audioScan);
-
-    flyBarcodeText(confirmedCode, "box1");
-
-    setTimeout(() => {
-
-        document.getElementById("code1").innerText = confirmedCode;
-
-    },800);
+    setCode(1, confirmedCode);
 
     setTimeout(() => {
 
@@ -976,34 +1056,27 @@ else if (!code2) {
 
     code2 = confirmedCode;
 
-    document.getElementById("box2").classList.add("filled");
-
-    playSound(audioScan);
-
-    flyBarcodeText(confirmedCode, "box2");
+    setCode(2, confirmedCode);
 
     setTimeout(() => {
 
-        document.getElementById("code2").innerText = confirmedCode;
-
         checkMatch();
 
-    }, 800);
+    },800);
 
     isScanning = false;
 
 }
-        });
+
+} 
 
 //=============================
 // 照合判定
 //=============================
 function checkMatch() {
 
-    const result = document.getElementById("scan-result");
-    const box1 = document.getElementById("box1");
-    const box2 = document.getElementById("box2");
-    const scanGuide = document.querySelector(".scan-area-guide");
+    const result = scanResult;
+    const scanGuide = guide;
 
     // OCRでは空白を無視して比較
     const compare1 = (code1 || "").replace(/\s/g, "");
@@ -1054,17 +1127,15 @@ function checkMatch() {
 //=============================
 function showOcrError(){
 
-    const guide = document.querySelector(".scan-area-guide");
-    const result = document.getElementById("scan-result");
 
-    // 現在表示中のOK/NGを保存
+ // 現在表示中のOK/NGを保存
     const oldClass = result.className;
     const oldText = result.innerText;
 
     guide.classList.add("ng");
 
-    result.className = "ocr-error";
-    result.innerText = "読み取れません";
+    scanResult.className = "ocr-error";
+    scanResult.innerText = "読み取れません";
 
     playSound(audioMismatch);
 
@@ -1126,34 +1197,32 @@ function saveHistory(code1, code2, result){
 //=============================
 // リセット処理
 //=============================
-document.getElementById('reset-btn').addEventListener('click', function () {
+resetBtn.addEventListener('click', function () {    code1 = null;
 
-    code1 = null;
     code2 = null;
     isScanning = true;
 
     detectionBuffer = [];
     lengthHistory = [];
 
-    document.getElementById("code1").innerText = "-";
-    document.getElementById("code2").innerText = "-";
+    code1Label.innerText = "-";
+    code2Label.innerText = "-";
 
     // OK・NG表示を消す
-    const result = document.getElementById("scan-result");
-    result.className = "";
-    result.innerText = "";
+    scanResult.className = "";
+    scanResult.innerText = "";
 
     // ボックスの色を元に戻す
-    document.getElementById("box1").className = "code-display";
-    document.getElementById("box2").className = "code-display";
+    box1.className = "code-display";
+    box2.className = "code-display";
 
     // スキャン枠を緑に戻す
-    document.querySelector(".scan-area-guide").classList.remove("ng");
+    guide.classList.remove("ng");
 
     // =============================
     // OCR画像を消す
     // =============================
-    const ocrCanvas = document.getElementById("ocr-canvas");
+    const canvas = ocrCanvas;
     const ocrCtx = ocrCanvas.getContext("2d");
 
     ocrCtx.clearRect(0, 0, ocrCanvas.width, ocrCanvas.height);
@@ -1168,18 +1237,16 @@ document.getElementById('reset-btn').addEventListener('click', function () {
 // 履歴表示
 //=============================
 
-document.getElementById("history-btn").addEventListener("click", function(){
+historyBtn.addEventListener("click", function(){
 
-    const area = document.getElementById("history-area");
+    if(getComputedStyle(historyArea).display === "none"){
 
-    if(getComputedStyle(area).display === "none"){
-
-        area.style.display = "block";
+        historyArea.style.display = "block";
         updateHistoryDisplay();
 
     }else{
 
-        area.style.display = "none";
+        historyArea.style.display = "none";
 
     }
 
@@ -1187,7 +1254,7 @@ document.getElementById("history-btn").addEventListener("click", function(){
 
 function updateHistoryDisplay(){
 
-    const area = document.getElementById("history-area");
+    const area = historyArea;
 
     // 閉じているときは更新しない
     if(getComputedStyle(area).display === "none"){
@@ -1239,7 +1306,7 @@ history.forEach((item,index) => {
 // CSV出力
 //=============================
 
-    document.getElementById("csv-btn").addEventListener("click",function(){
+    csvBtn.addEventListener("click",function(){
 
     const history=JSON.parse(localStorage.getItem("barcodeHistory") || "[]");
 
@@ -1269,7 +1336,7 @@ history.forEach((item,index) => {
 // 履歴全削除
 //=============================
 
-    document.getElementById("clear-history-btn").addEventListener("click", function(){
+    clearHistoryBtn.addEventListener("click", function(){
 
     localStorage.removeItem("barcodeHistory");
 
@@ -1281,18 +1348,18 @@ history.forEach((item,index) => {
 // モード切替
 //=============================
 
-document.getElementById("barcode-mode-btn").addEventListener("click", function () {
+barcodeModeBtn.addEventListener("click", function () {
 
     currentMode = "barcode";
 
     // OCRボタンを隠す
-    document.getElementById("ocr-read-btn").style.display = "none";
+    ocrReadBtn.style.display = "none";
 
     document.body.style.paddingBottom = "0px";
 
     // ボタン表示切替
     this.classList.add("mode-active");
-    document.getElementById("ocr-mode-btn").classList.remove("mode-active");
+    ocrModeBtn.classList.remove("mode-active");
 
     // 説明文
     document.querySelector("p").innerText = "緑の枠内にバーコードを合わせてください";
@@ -1310,19 +1377,19 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
 
 });
 
-    document.getElementById("ocr-mode-btn").addEventListener("click",function(){
+    ocrModeBtn.addEventListener("click",function(){
 
     currentMode="ocr";
 
-    document.getElementById("ocr-read-btn").style.display="block";
+    ocrReadBtn.style.display="block";
 
     document.body.style.paddingBottom = "90px";
 
     this.classList.add("mode-active");
-    document.getElementById("barcode-mode-btn").classList.remove("mode-active");
+
+    barcodeModeBtn.classList.remove("mode-active");
 
     document.querySelector("p").innerText="緑の枠内に文字を合わせてください";
-
 
     document.querySelector(".scan-area-guide").classList.add("ocr-mode");
 
@@ -1330,7 +1397,7 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
 
     document.getElementById("barcode-mode-btn").classList.add("mode-active");
 
-    document.getElementById("ocr-read-btn").addEventListener("click", async function(){
+    ocrReadBtn.addEventListener("click", async function(){
 
     this.disabled = true;
     this.innerText = "読取中...";
@@ -1344,8 +1411,10 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
     isScanning = false;
    
 
-    // 毎回videoを取得
-    videoElement = document.querySelector("#interactive video");
+// videoが無ければ取得
+    if(!videoElement){
+        videoElement = document.querySelector("#interactive video");
+}
 
     if(!videoElement){
 
@@ -1358,7 +1427,7 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
 
     }
 
-    const canvas = document.getElementById("ocr-canvas");
+    const canvas = ocrCanvas;
     const ctx = canvas.getContext("2d");
 
 // カメラ映像サイズ
@@ -1366,8 +1435,6 @@ document.getElementById("barcode-mode-btn").addEventListener("click", function (
     const vh = videoElement.videoHeight;
 
 // 緑枠の位置を取得
-    const guide = document.querySelector(".scan-area-guide");
-
     const guideRect = guide.getBoundingClientRect();
 
     const videoRect = videoElement.getBoundingClientRect();
@@ -1412,6 +1479,7 @@ const sh =
 // 滑らかに表示
     ctx.imageSmoothingEnabled = true;
 
+    ctx.filter = "contrast(180%) brightness(110%)";
 
 // 緑枠だけ切り抜く
     ctx.drawImage(
@@ -1620,48 +1688,27 @@ if(!code1){
 
     code1 = text;
 
-    flyBarcodeText(text, "box1");
-
-    setTimeout(() => {
-        playSound(audioScan);
-    }, 250);
-
-    setTimeout(() => {
-
-        document.getElementById("code1").innerText = text;
-
-        document.getElementById("box1").classList.add("filled");
-
-    },800);
-
+    setCode(1, text);
 }
 
 else if(!code2){
 
     code2 = text;
 
-    flyBarcodeText(text, "box2");
+setCode(2, text);
 
-    setTimeout(() => {
-        playSound(audioScan);
-    }, 250);
+setTimeout(() => {
 
-    setTimeout(() => {
+    checkMatch();
 
-        document.getElementById("code2").innerText = text;
-
-        document.getElementById("box2").classList.add("filled");
-
-        checkMatch();
-
-    },800);
+},800);
 
 }
 
 }
 catch(error){
     
-    alert(error);      // ←この1行を追加
+    alert(error);
     
     console.error(error);
 
@@ -1671,10 +1718,10 @@ catch(error){
 
 finally{
 
-    // OCR画像を1秒後に消す
+// OCR画像を1秒後に消す
     setTimeout(function(){
 
-        const canvas = document.getElementById("ocr-canvas");
+        const canvas = ocrCanvas;
 
         if(canvas){
 
