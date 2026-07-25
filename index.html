@@ -1129,9 +1129,9 @@ function showOcrError(){
 
 
  // 現在表示中のOK/NGを保存
-    const oldClass = result.className;
-    const oldText = result.innerText;
-
+    const oldClass = scanResult.className;
+    const oldText = scanResult.innerText;
+    
     guide.classList.add("ng");
 
     scanResult.className = "ocr-error";
