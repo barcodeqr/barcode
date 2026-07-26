@@ -198,6 +198,8 @@
         <label style="font-weight:bold; color:#333;">📂 マスターCSVファイルの読込:</label><br>
         <input type="file" id="csv-file-input" accept=".csv" style="margin-top:8px;">
         <div id="csv-status" class="csv-status">ファイル未選択（ID単体で照合します）</div>
+        <button id="clear-csv-btn" style="margin-top:8px; background-color:#888; color:#fff; border:none; padding:6px 12px; border-radius:4px; font-size:14px; cursor:pointer; transition: all 0.2s ease;">
+            マスターCSVを消去</button>
     </div>
 
     <div id="mode-area">
@@ -247,12 +249,6 @@
     let currentMode = "barcode";
     let videoElement = null;
 
-    // Master Data Store (ID => 名称)
-    let masterDataMap = {};
-
-    // ZXing Reader インスタンス
-    let codeReader = null;
-
     // DOM取得
     const guide = document.querySelector(".scan-area-guide");
     const scanResult = document.getElementById("scan-result");
@@ -274,6 +270,28 @@
     const csvBtn = document.getElementById("csv-btn");
     const csvInput = document.getElementById("csv-file-input");
     const csvStatus = document.getElementById("csv-status");
+    const clearCsvBtn = document.getElementById("clear-csv-btn");
+
+    // 保存されたマスターデータがあれば自動で読み込む
+    let masterDataMap = {};
+    const savedMaster = localStorage.getItem("masterDataMap");
+    const savedMasterTime = localStorage.getItem("masterDataTime");
+
+    if (savedMaster) {
+        try {
+            masterDataMap = JSON.parse(savedMaster);
+            const count = Object.keys(masterDataMap).length;
+            if (count > 0 && savedMasterTime) {
+                csvStatus.innerText = `✅ 保存済みマスターデータ適用中 (${savedMasterTime} 読込 / ${count} 件)`;
+                csvStatus.style.color = "#008800";
+            }
+        } catch (e) {
+            console.error("マスターデータの復元に失敗しました", e);
+        }
+    }
+
+    // ZXing Reader インスタンス
+    let codeReader = null;
 
     // 誤読防止バッファ設定
     let detectionBuffer = [];
@@ -317,10 +335,8 @@
                 const rawId = cols[0];
                 const name = cols[1];
 
-                // そのまま登録
                 masterDataMap[rawId] = name;
-                
-                // ゼロ埋め補正（6桁想定）も念のため登録
+            
                 if (/^\d+$/.test(rawId)) {
                     const paddedId = rawId.padStart(6, '0');
                     masterDataMap[paddedId] = name;
@@ -329,7 +345,19 @@
             }
         });
 
-        csvStatus.innerText = `✅ マスターデータ読み込み完了 (${count} 件登録)`;
+        // 現在日時を取得してフォーマット (例: 2026/07/26 22:00)
+        const now = new Date();
+        const formattedTime = now.getFullYear() + "/" +
+            String(now.getMonth() + 1).padStart(2, '0') + "/" +
+            String(now.getDate()).padStart(2, '0') + " " +
+            String(now.getHours()).padStart(2, '0') + ":" +
+            String(now.getMinutes()).padStart(2, '0');
+
+        // 取り込んだデータと日時をブラウザ内に保存する
+        localStorage.setItem("masterDataMap", JSON.stringify(masterDataMap));
+        localStorage.setItem("masterDataTime", formattedTime);
+
+        csvStatus.innerText = `✅ マスターデータ読み込み完了 (${formattedTime} / ${count} 件登録)`;
         csvStatus.style.color = "#008800";
     }
 
@@ -731,6 +759,57 @@
             this.style.display = "block";
         }
     });
+
+    // マスターCSVの消去ボタン処理
+    let isConfirmingClear = false;
+
+    if (clearCsvBtn) {
+        clearCsvBtn.addEventListener("click", function () {
+            if (!isConfirmingClear) {
+                // 1回目のタップ：警告表示に切り替え
+                isConfirmingClear = true;
+                this.innerText = "本当に消去しますか？";
+                this.style.backgroundColor = "#ff0000";
+                this.style.fontWeight = "bold";
+                this.style.boxShadow = "0 0 10px rgba(255, 0, 0, 0.6)";
+
+                // 5秒間操作がなければ元の状態に戻す
+                setTimeout(() => {
+                    isConfirmingClear = false;
+                    this.innerText = "マスターCSVを消去";
+                    this.style.backgroundColor = "#888";
+                    this.style.fontWeight = "normal";
+                    this.style.boxShadow = "none";
+                }, 5000);
+
+            } else {
+                // 2回目のタップ：実際に消去を実行
+                if (csvInput) csvInput.value = "";
+                
+                // マスターデータと保存日時の初期化
+                masterDataMap = {};
+                localStorage.removeItem("masterDataMap");
+                localStorage.removeItem("masterDataTime");
+
+                if (csvStatus) {
+                    csvStatus.innerText = "ファイル未選択（ID単体で照合します）";
+                    csvStatus.style.color = "";
+                }
+
+                isConfirmingClear = false;
+                this.innerText = "消去しました";
+                this.style.backgroundColor = "#4CAF50";
+                this.style.fontWeight = "normal";
+                this.style.boxShadow = "none";
+
+                setTimeout(() => {
+                    this.innerText = "マスターCSVを消去";
+                    this.style.backgroundColor = "#888";
+                }, 2000);
+            }
+        });
+    }
+
 </script>
 </body>
 </html>
