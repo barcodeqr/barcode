@@ -93,8 +93,10 @@
         .code-display.mismatch { background: #f8d7da; border-color: #dc3545; transform: scale(1.03); }
         .code-display h3 { margin: 0 0 10px 0; font-size: 14px; color: #666; }
         
-        .code-id { font-size: 16px; font-weight: bold; color: #333; }
-        .code-name { font-size: 18px; font-weight: bold; color: #007aff; margin-top: 4px; min-height: 27px; word-break: break-all; }
+        .code-id { font-size: 16px; font-weight: bold; color: #333; text-align: center; }
+        .code-name { font-size: 18px; font-weight: bold; color: #007aff; margin-top: 4px; min-height: 27px; word-break: break-all; text-align: center; }
+        /* 3列目以降の追加データ用スタイル：中央揃え、黒字、太字、背景は親要素をそのまま引き継ぐ */
+        .code-extra { font-size: 16px; font-weight: bold; color: #333; margin-top: 4px; text-align: center; word-break: break-all; }
 
         button {
             padding: 14px 28px; font-size: 18px; font-weight: bold; margin: 10px; cursor: pointer;
@@ -224,11 +226,13 @@
             <h3>1つ目の対象</h3>
             <div id="code1-id" class="code-id">-</div>
             <div id="code1-name" class="code-name"></div>
+            <div id="code1-extra" class="code-extra" style="display:none;"></div>
         </div>
         <div class="code-display" id="box2">
             <h3>2つ目の対象</h3>
             <div id="code2-id" class="code-id">-</div>
             <div id="code2-name" class="code-name"></div>
+            <div id="code2-extra" class="code-extra" style="display:none;"></div>
         </div>
     </div>
 
@@ -256,8 +260,10 @@
     const box2 = document.getElementById("box2");
     const code1IdLabel = document.getElementById("code1-id");
     const code1NameLabel = document.getElementById("code1-name");
+    const code1ExtraLabel = document.getElementById("code1-extra");
     const code2IdLabel = document.getElementById("code2-id");
     const code2NameLabel = document.getElementById("code2-name");
+    const code2ExtraLabel = document.getElementById("code2-extra");
     const ocrCanvas = document.getElementById("ocr-canvas");
     const ocrReadBtn = document.getElementById("ocr-read-btn");
     const ocrModeBtn = document.getElementById("ocr-mode-btn");
@@ -334,18 +340,20 @@
             if (cols.length >= 2 && cols[0]) {
                 const rawId = cols[0];
                 const name = cols[1];
+                const extras = cols.slice(2); // 3列目以降をすべて配列として保持
 
-                masterDataMap[rawId] = name;
+                const itemObj = { name: name, extras: extras };
+
+                masterDataMap[rawId] = itemObj;
             
                 if (/^\d+$/.test(rawId)) {
                     const paddedId = rawId.padStart(6, '0');
-                    masterDataMap[paddedId] = name;
+                    masterDataMap[paddedId] = itemObj;
                 }
                 count++;
             }
         });
 
-        // 現在日時を取得してフォーマット (例: 2026/07/26 22:00)
         const now = new Date();
         const formattedTime = now.getFullYear() + "/" +
             String(now.getMonth() + 1).padStart(2, '0') + "/" +
@@ -353,7 +361,6 @@
             String(now.getHours()).padStart(2, '0') + ":" +
             String(now.getMinutes()).padStart(2, '0');
 
-        // 取り込んだデータと日時をブラウザ内に保存する
         localStorage.setItem("masterDataMap", JSON.stringify(masterDataMap));
         localStorage.setItem("masterDataTime", formattedTime);
 
@@ -361,18 +368,33 @@
         csvStatus.style.color = "#008800";
     }
 
-    // IDから名前を引く検索関数
-    function getItemName(id) {
+    // IDからオブジェクトを引く検索関数
+    function getItemObj(id) {
         const cleanId = String(id).trim();
         if (masterDataMap[cleanId]) return masterDataMap[cleanId];
         
-        // 桁数補正（6桁化して検索）
         if (/^\d+$/.test(cleanId)) {
             const padded = cleanId.padStart(6, '0');
             if (masterDataMap[padded]) return masterDataMap[padded];
         }
 
+        return null;
+    }
+
+    // 名称取得
+    function getItemName(id) {
+        const itemObj = getItemObj(id);
+        if (itemObj) return itemObj.name;
         return Object.keys(masterDataMap).length > 0 ? "［未登録のID］" : "";
+    }
+
+    // 3列目以降の拡張データを改行テキストとして取得
+    function getItemExtraText(id) {
+        const itemObj = getItemObj(id);
+        if (itemObj && itemObj.extras && itemObj.extras.length > 0) {
+            return itemObj.extras.filter(val => val !== "").join("<br>");
+        }
+        return "";
     }
 
     function playSound(audioObject, callback) {
@@ -419,8 +441,10 @@
         const box = targetNo === 1 ? box1 : box2;
         const idLabel = targetNo === 1 ? code1IdLabel : code2IdLabel;
         const nameLabel = targetNo === 1 ? code1NameLabel : code2NameLabel;
+        const extraLabel = targetNo === 1 ? code1ExtraLabel : code2ExtraLabel;
 
         const matchedName = getItemName(text);
+        const extraText = getItemExtraText(text);
 
         box.classList.add("filled");
         flyBarcodeText(matchedName ? matchedName : text, "box" + targetNo);
@@ -429,6 +453,14 @@
         setTimeout(() => { 
             idLabel.innerText = "ID: " + text;
             nameLabel.innerText = matchedName;
+            
+            if (extraText) {
+                extraLabel.innerHTML = extraText;
+                extraLabel.style.display = "block";
+            } else {
+                extraLabel.innerHTML = "";
+                extraLabel.style.display = "none";
+            }
         }, 800);
     }
 
@@ -555,15 +587,35 @@
         }, 1500);
     }
 
+    // 履歴データフォーマット補助関数 (2項目以降をすべて () で作成)
+    function buildItemDetail(id) {
+        let text = String(id);
+        const itemObj = getItemObj(id);
+        
+        if (itemObj) {
+            if (itemObj.name) {
+                text += ` (${itemObj.name})`;
+            }
+            if (itemObj.extras && itemObj.extras.length > 0) {
+                itemObj.extras.forEach(extraVal => {
+                    if (extraVal !== "") {
+                        text += ` (${extraVal})`;
+                    }
+                });
+            }
+        }
+        return text;
+    }
+
     function saveHistory(c1, c2, res){
-        const name1 = getItemName(c1);
-        const name2 = getItemName(c2);
+        const detail1 = buildItemDetail(c1);
+        const detail2 = buildItemDetail(c2);
 
         const history = JSON.parse(localStorage.getItem("barcodeHistory") || "[]");
         history.unshift({
             datetime: new Date().toLocaleString("ja-JP"),
-            code1: c1 + (name1 ? ` (${name1})` : ""),
-            code2: c2 + (name2 ? ` (${name2})` : ""),
+            code1: detail1,
+            code2: detail2,
             result: res
         });
 
@@ -583,8 +635,13 @@
 
         code1IdLabel.innerText = "-";
         code1NameLabel.innerText = "";
+        code1ExtraLabel.innerHTML = "";
+        code1ExtraLabel.style.display = "none";
+
         code2IdLabel.innerText = "-";
         code2NameLabel.innerText = "";
+        code2ExtraLabel.innerHTML = "";
+        code2ExtraLabel.style.display = "none";
 
         scanResult.className = "";
         scanResult.innerText = "";
@@ -766,14 +823,12 @@
     if (clearCsvBtn) {
         clearCsvBtn.addEventListener("click", function () {
             if (!isConfirmingClear) {
-                // 1回目のタップ：警告表示に切り替え
                 isConfirmingClear = true;
                 this.innerText = "本当に消去しますか？";
                 this.style.backgroundColor = "#ff0000";
                 this.style.fontWeight = "bold";
                 this.style.boxShadow = "0 0 10px rgba(255, 0, 0, 0.6)";
 
-                // 5秒間操作がなければ元の状態に戻す
                 setTimeout(() => {
                     isConfirmingClear = false;
                     this.innerText = "マスターCSVを消去";
@@ -783,10 +838,8 @@
                 }, 5000);
 
             } else {
-                // 2回目のタップ：実際に消去を実行
                 if (csvInput) csvInput.value = "";
                 
-                // マスターデータと保存日時の初期化
                 masterDataMap = {};
                 localStorage.removeItem("masterDataMap");
                 localStorage.removeItem("masterDataTime");
