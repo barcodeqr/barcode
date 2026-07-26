@@ -28,7 +28,7 @@
             background: #fff; border: 2px dashed #007aff; border-radius: 12px;
             padding: 15px; margin: 15px auto; max-width: 500px; box-sizing: border-box;
         }
-        .csv-status { font-weight: bold; margin-top: 8px; color: #007aff; font-size: 14px; }
+        .csv-status { font-weight: bold; margin-top: 8px; color: #007aff; font-size: 14px; line-height: 1.4; }
 
         #interactive.viewport {
             width: 100%; max-width: 500px; aspect-ratio: 16 / 9; height: auto;
@@ -288,7 +288,7 @@
             masterDataMap = JSON.parse(savedMaster);
             const count = Object.keys(masterDataMap).length;
             if (count > 0 && savedMasterTime) {
-                csvStatus.innerText = `✅ 保存済みマスターデータ適用中 (${savedMasterTime} 読込 / ${count} 件)`;
+                csvStatus.innerHTML = `✅ 保存済みマスターデータ適用中<br>(${savedMasterTime} 読込 / ${count} 件)`;
                 csvStatus.style.color = "#008800";
             }
         } catch (e) {
@@ -364,7 +364,7 @@
         localStorage.setItem("masterDataMap", JSON.stringify(masterDataMap));
         localStorage.setItem("masterDataTime", formattedTime);
 
-        csvStatus.innerText = `✅ CSV読込完了 (${formattedTime} / ${count} 件登録)`;
+        csvStatus.innerHTML = `✅ マスターデータCSV読込完了<br>(${formattedTime} / ${count} 件登録)`;
         csvStatus.style.color = "#008800";
     }
 
