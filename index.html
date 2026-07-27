@@ -95,7 +95,6 @@
         
         .code-id { font-size: 16px; font-weight: bold; color: #333; text-align: center; }
         .code-name { font-size: 18px; font-weight: bold; color: #007aff; margin-top: 4px; min-height: 27px; word-break: break-all; text-align: center; }
-        /* 3列目以降の追加データ用スタイル：中央揃え、黒字、太字、背景は親要素をそのまま引き継ぐ */
         .code-extra { font-size: 16px; font-weight: bold; color: #333; margin-top: 4px; text-align: center; word-break: break-all; }
 
         button {
@@ -124,10 +123,31 @@
             transition: transform .8s ease, opacity .8s ease;
         }
 
-        #history-btn, #csv-btn, #clear-history-btn { width: 220px; height: 60px; font-size: 22px; font-weight: bold; border-radius: 10px; color: #fff; }
+        #history-btn, #csv-btn { width: 220px; height: 60px; font-size: 22px; font-weight: bold; border-radius: 10px; color: #fff; }
         #history-btn { background: linear-gradient(to bottom,#4da3ff,#007aff); box-shadow: 0 5px 0 #005fc2, 0 8px 18px rgba(0,0,0,.25); }
         #csv-btn { background: linear-gradient(to bottom,#4CAF50,#2E7D32); box-shadow: 0 5px 0 #1B5E20, 0 8px 18px rgba(0,0,0,.25); }
-        #clear-history-btn { background: linear-gradient(to bottom,#ff7777,#d9534f); box-shadow: 0 5px 0 #a52a2a, 0 8px 18px rgba(0,0,0,.25); }
+        
+        /* 履歴全削除ボタン（折り返し・位置ズレ防止調整済み） */
+        #clear-history-btn {
+            min-width: 220px;
+            width: auto;
+            height: 60px;
+            padding: 0 20px;
+            font-size: 22px;
+            font-weight: bold;
+            border-radius: 10px;
+            color: #fff;
+            white-space: nowrap;
+            box-sizing: border-box;
+            background: linear-gradient(to bottom,#ff7777,#d9534f);
+            box-shadow: 0 5px 0 #a52a2a, 0 8px 18px rgba(0,0,0,.25);
+        }
+
+        /* マスターCSV消去ボタン（折り返し・位置ズレ防止調整済み） */
+        #clear-csv-btn {
+            white-space: nowrap;
+            box-sizing: border-box;
+        }
 
         #ocr-read-btn{ display: none; width: 260px; height: 65px; margin: 18px auto; font-size: 24px; font-weight: bold; background: linear-gradient(to bottom,#4CAF50,#2E7D32); }
 
@@ -327,7 +347,7 @@
             const text = event.target.result;
             parseCSVData(text);
         };
-        reader.readAsText(file, "Shift_JIS"); // 日本語Excel対応（UTF-8で化ける場合はShift_JIS）
+        reader.readAsText(file, "Shift_JIS");
     });
 
     function parseCSVData(csvText) {
@@ -340,7 +360,7 @@
             if (cols.length >= 2 && cols[0]) {
                 const rawId = cols[0];
                 const name = cols[1];
-                const extras = cols.slice(2); // 3列目以降をすべて配列として保持
+                const extras = cols.slice(2);
 
                 const itemObj = { name: name, extras: extras };
 
@@ -364,7 +384,7 @@
         localStorage.setItem("masterDataMap", JSON.stringify(masterDataMap));
         localStorage.setItem("masterDataTime", formattedTime);
 
-        csvStatus.innerHTML = `✅ マスターデータCSV読込完了<br>(${formattedTime} / ${count} 件登録)`;
+        csvStatus.innerHTML = `✅ CSV読込完了<br>(${formattedTime} / ${count} 件登録)`;
         csvStatus.style.color = "#008800";
     }
 
@@ -587,7 +607,6 @@
         }, 1500);
     }
 
-    // 履歴データフォーマット補助関数 (2項目以降をすべて () で作成)
     function buildItemDetail(id) {
         let text = String(id);
         const itemObj = getItemObj(id);
@@ -706,9 +725,50 @@
         a.click();
     });
 
-    clearHistoryBtn.addEventListener("click", function(){
-        localStorage.removeItem("barcodeHistory");
-        updateHistoryDisplay();
+    // 履歴全削除ボタン処理（2段階確認・ズレ・折り返し対策）
+    let isConfirmingClearHistory = false;
+
+    clearHistoryBtn.addEventListener("click", function () {
+        if (!isConfirmingClearHistory) {
+            isConfirmingClearHistory = true;
+            this.innerText = "本当に消去しますか？";
+            
+            this.style.boxSizing = "border-box";
+            this.style.whiteSpace = "nowrap";
+            this.style.backgroundColor = "#ffffff";
+            this.style.color = "#ff0000";
+            this.style.fontWeight = "bold";
+            this.style.border = "2px solid #ff0000";
+            this.style.boxShadow = "0 0 10px rgba(255, 0, 0, 0.4)";
+
+            setTimeout(() => {
+                isConfirmingClearHistory = false;
+                this.innerText = "履歴全削除";
+                this.style.background = "linear-gradient(to bottom,#ff7777,#d9534f)";
+                this.style.color = "#ffffff";
+                this.style.fontWeight = "bold";
+                this.style.border = "none";
+                this.style.boxShadow = "0 5px 0 #a52a2a, 0 8px 18px rgba(0,0,0,.25)";
+            }, 5000);
+
+        } else {
+            localStorage.removeItem("barcodeHistory");
+            updateHistoryDisplay();
+
+            isConfirmingClearHistory = false;
+            this.innerText = "削除しました";
+            this.style.background = "#4CAF50";
+            this.style.color = "#ffffff";
+            this.style.fontWeight = "bold";
+            this.style.border = "none";
+            this.style.boxShadow = "none";
+
+            setTimeout(() => {
+                this.innerText = "履歴全削除";
+                this.style.background = "linear-gradient(to bottom,#ff7777,#d9534f)";
+                this.style.boxShadow = "0 5px 0 #a52a2a, 0 8px 18px rgba(0,0,0,.25)";
+            }, 2000);
+        }
     });
 
     barcodeModeBtn.addEventListener("click", function () {
@@ -817,7 +877,7 @@
         }
     });
 
-    // マスターCSVの消去ボタン処理
+    // マスターCSVの消去ボタン処理（2段階確認・ズレ・折り返し対策）
     let isConfirmingClear = false;
 
     if (clearCsvBtn) {
@@ -825,15 +885,22 @@
             if (!isConfirmingClear) {
                 isConfirmingClear = true;
                 this.innerText = "本当に消去しますか？";
-                this.style.backgroundColor = "#ff0000";
+                
+                this.style.boxSizing = "border-box";
+                this.style.whiteSpace = "nowrap";
+                this.style.backgroundColor = "#ffffff";
+                this.style.color = "#ff0000";
                 this.style.fontWeight = "bold";
-                this.style.boxShadow = "0 0 10px rgba(255, 0, 0, 0.6)";
+                this.style.border = "2px solid #ff0000";
+                this.style.boxShadow = "0 0 10px rgba(255, 0, 0, 0.4)";
 
                 setTimeout(() => {
                     isConfirmingClear = false;
                     this.innerText = "マスターCSVを消去";
                     this.style.backgroundColor = "#888";
+                    this.style.color = "#ffffff";
                     this.style.fontWeight = "normal";
+                    this.style.border = "none";
                     this.style.boxShadow = "none";
                 }, 5000);
 
@@ -852,7 +919,9 @@
                 isConfirmingClear = false;
                 this.innerText = "消去しました";
                 this.style.backgroundColor = "#4CAF50";
+                this.style.color = "#ffffff";
                 this.style.fontWeight = "normal";
+                this.style.border = "none";
                 this.style.boxShadow = "none";
 
                 setTimeout(() => {
