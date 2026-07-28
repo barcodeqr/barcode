@@ -127,7 +127,6 @@
         #history-btn { background: linear-gradient(to bottom,#4da3ff,#007aff); box-shadow: 0 5px 0 #005fc2, 0 8px 18px rgba(0,0,0,.25); }
         #csv-btn { background: linear-gradient(to bottom,#4CAF50,#2E7D32); box-shadow: 0 5px 0 #1B5E20, 0 8px 18px rgba(0,0,0,.25); }
         
-        /* 履歴全削除ボタン（折り返し・位置ズレ防止調整済み） */
         #clear-history-btn {
             min-width: 220px;
             width: auto;
@@ -143,7 +142,6 @@
             box-shadow: 0 5px 0 #a52a2a, 0 8px 18px rgba(0,0,0,.25);
         }
 
-        /* マスターCSV消去ボタン（折り返し・位置ズレ防止調整済み） */
         #clear-csv-btn {
             white-space: nowrap;
             box-sizing: border-box;
@@ -202,7 +200,6 @@
           white-space: nowrap;       
           text-align: center;
         }
-  
     </style>
 </head>
 
@@ -215,7 +212,6 @@
     
     <button id="start-audio-btn">最初にタップして起動</button>
 
-    <!-- CSVマスターデータ読み込みエリア -->
     <div class="csv-upload-box">
         <label style="font-weight:bold; color:#333;">📂 マスターCSVファイルの読込:</label><br>
         <input type="file" id="csv-file-input" accept=".csv" style="margin-top:8px;">
@@ -231,7 +227,6 @@
     
     <p id="instruction-text">緑の枠内にコードまたはQRを合わせてください</p>
 
-    <!-- カメラ映像表示エリア -->
     <div id="interactive" class="viewport">
         <video id="video-element" playsinline webkit-playsinline muted autoplay></video>
         <div class="scan-area-guide">
@@ -273,7 +268,6 @@
     let currentMode = "barcode";
     let videoElement = null;
 
-    // DOM取得
     const guide = document.querySelector(".scan-area-guide");
     const scanResult = document.getElementById("scan-result");
     const box1 = document.getElementById("box1");
@@ -298,7 +292,6 @@
     const csvStatus = document.getElementById("csv-status");
     const clearCsvBtn = document.getElementById("clear-csv-btn");
 
-    // 保存されたマスターデータがあれば自動で読み込む
     let masterDataMap = {};
     const savedMaster = localStorage.getItem("masterDataMap");
     const savedMasterTime = localStorage.getItem("masterDataTime");
@@ -316,20 +309,16 @@
         }
     }
 
-    // ZXing Reader インスタンス
     let codeReader = null;
 
-    // 誤読防止バッファ設定
+    // 【高速化設定】一致チェックを2回に短縮
     let detectionBuffer = [];
-    let lengthHistory = []; 
-    const REQUIRED_CONSISTENT_READS = 7; 
+    const REQUIRED_CONSISTENT_READS = 2;
 
-    // 音声ファイル
     const audioScan = new Audio('scan.mp3');
     const audioMatch = new Audio('pingpong.mp3');
     const audioMismatch = new Audio('boo.mp3');
 
-    // iOS/iPadOS 音声制限解放
     document.getElementById('start-audio-btn').addEventListener('click', function () {
         audioScan.play().then(() => { audioScan.pause(); audioScan.currentTime = 0; });
         audioMatch.play().then(() => { audioMatch.pause(); audioMatch.currentTime = 0; });
@@ -337,7 +326,6 @@
         this.style.display = "none";
     });
 
-    // CSVファイルのパース・読み込み処理
     csvInput.addEventListener("change", function(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -388,7 +376,6 @@
         csvStatus.style.color = "#008800";
     }
 
-    // IDからオブジェクトを引く検索関数
     function getItemObj(id) {
         const cleanId = String(id).trim();
         if (masterDataMap[cleanId]) return masterDataMap[cleanId];
@@ -401,14 +388,12 @@
         return null;
     }
 
-    // 名称取得
     function getItemName(id) {
         const itemObj = getItemObj(id);
         if (itemObj) return itemObj.name;
         return Object.keys(masterDataMap).length > 0 ? "［未登録のID］" : "";
     }
 
-    // 3列目以降の拡張データを改行テキストとして取得
     function getItemExtraText(id) {
         const itemObj = getItemObj(id);
         if (itemObj && itemObj.extras && itemObj.extras.length > 0) {
@@ -486,7 +471,9 @@
 
     async function startBarcodeScanner() {
         videoElement = document.getElementById("video-element");
-        codeReader = new ZXing.BrowserMultiFormatReader();
+        
+        const hints = new Map();
+        codeReader = new ZXing.BrowserMultiFormatReader(hints, 50);
 
         try {
             const videoInputDevices = await codeReader.listVideoInputDevices();
@@ -517,11 +504,6 @@
         if (!isScanning) return;
         if (!codeStr) return;
 
-        lengthHistory.push(codeStr.length);
-        if (lengthHistory.length > 10) lengthHistory.shift();
-        const maxLength = Math.max(...lengthHistory);
-        if (codeStr.length < maxLength) return;
-
         detectionBuffer.push(codeStr);
         if (detectionBuffer.length < REQUIRED_CONSISTENT_READS) return;
 
@@ -533,13 +515,12 @@
 
         const confirmedCode = detectionBuffer[0];
         detectionBuffer = [];
-        lengthHistory = []; 
 
         if (!code1) {
             isScanning = false;
             code1 = confirmedCode;
             setCode(1, confirmedCode);
-            setTimeout(() => { isScanning = true; }, 2000);
+            setTimeout(() => { isScanning = true; }, 1500);
         } else if (!code2) {
             code2 = confirmedCode;
             setCode(2, confirmedCode);
@@ -650,7 +631,6 @@
         isScanning = true;
 
         detectionBuffer = [];
-        lengthHistory = [];
 
         code1IdLabel.innerText = "-";
         code1NameLabel.innerText = "";
@@ -725,7 +705,6 @@
         a.click();
     });
 
-    // 履歴全削除ボタン処理（2段階確認・ズレ・折り返し対策）
     let isConfirmingClearHistory = false;
 
     clearHistoryBtn.addEventListener("click", function () {
@@ -784,7 +763,6 @@
 
         isScanning = true;
         detectionBuffer = [];
-        lengthHistory = [];
     });
 
     ocrModeBtn.addEventListener("click", function(){
@@ -801,6 +779,7 @@
 
     document.getElementById("barcode-mode-btn").classList.add("mode-active");
 
+    // OCR読取処理
     ocrReadBtn.addEventListener("click", async function(){
         this.disabled = true;
         this.innerText = "読取中...";
@@ -812,6 +791,7 @@
 
             if(!videoElement){
                 alert("カメラが準備できていません");
+                showOcrError();
                 return;
             }
 
@@ -834,35 +814,45 @@
             const sy = ((guideRect.top - videoRect.top) + offsetY) / scale;
             const sw = guideRect.width / scale;
             const sh = guideRect.height / scale;
-                
-            canvas.width = Math.round(sw);
-            canvas.height = Math.round(sh);
 
-            ctx.drawImage(videoElement, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+            canvas.width = sw;
+            canvas.height = sh;
 
+            // 枠内部分をキャプチャ切り出し
+            ctx.drawImage(videoElement, sx, sy, sw, sh, 0, 0, sw, sh);
+
+            // コントラスト調整（認識率向上のための二値化）
+            const imgData = ctx.getImageData(0, 0, sw, sh);
+            const data = imgData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                let avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                let v = avg > 120 ? 255 : 0;
+                data[i] = v;
+                data[i + 1] = v;
+                data[i + 2] = v;
+            }
+            ctx.putImageData(imgData, 0, 0);
+
+            // Tesseract.js による文字認識
             const result = await Tesseract.recognize(
                 canvas,
-                "jpn",
-                { tessedit_pageseg_mode: 7 }
+                'jpn+eng',
+                { logger: m => console.log(m) }
             );
 
-            if (videoElement) videoElement.play().catch(() => {});
-                
-            let text = result.data.text.trim();
-            text = text.replace(/\s+/g, "").substring(0, 8);
+            const cleanedText = result.data.text.replace(/[\r\n\s]+/g, "").trim();
 
-            if (text === "" || result.data.confidence < 50) {
+            if (cleanedText.length > 0) {
+                if (!code1) {
+                    code1 = cleanedText;
+                    setCode(1, cleanedText);
+                } else if (!code2) {
+                    code2 = cleanedText;
+                    setCode(2, cleanedText);
+                    setTimeout(() => { checkMatch(); }, 800);
+                }
+            } else {
                 showOcrError();
-                return;
-            }
-
-            if(!code1){
-                code1 = text;
-                setCode(1, text);
-            } else if(!code2){
-                code2 = text;
-                setCode(2, text);
-                setTimeout(() => { checkMatch(); }, 800);
             }
 
         } catch(error) {
@@ -877,7 +867,7 @@
         }
     });
 
-    // マスターCSVの消去ボタン処理（2段階確認・ズレ・折り返し対策）
+    // マスターCSV消去処理（2段階確認付き）
     let isConfirmingClear = false;
 
     if (clearCsvBtn) {
@@ -931,7 +921,6 @@
             }
         });
     }
-
 </script>
 </body>
 </html>
