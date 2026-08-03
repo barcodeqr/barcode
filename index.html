@@ -478,23 +478,21 @@ async function startBarcodeScanner() {
     codeReader = new ZXing.BrowserMultiFormatReader(hints, 50);
 
     try {
-        const videoInputDevices = await codeReader.listVideoInputDevices();
-        
-        let selectedDeviceId = videoInputDevices[0]?.deviceId;
-        const backCamera = videoInputDevices.find(device => 
-            /back|rear|environment/i.test(device.label)
-        );
-        if (backCamera) {
-            selectedDeviceId = backCamera.deviceId;
-        }
+        // iOS(Safari)対策: undefined を渡して自動選択させるか、facingMode を使う
+        let constraints = {
+            video: {
+                facingMode: { ideal: "environment" }, // 背面カメラを優先
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            }
+        };
 
-        // ZXingの標準動画読み取りを開始
-        codeReader.decodeFromVideoDevice(selectedDeviceId, 'video-element', (result, err) => {
+        // decodeFromConstraints を使用してiPhoneでのカメラ起動を安定化
+        codeReader.decodeFromConstraints(constraints, 'video-element', (result, err) => {
             if (result) {
-                // 【枠外ガード処理】検出されたコードの位置座標を取得
+                // 枠外ガード処理（検出座標の判定）
                 const resultPoints = result.getResultPoints();
                 
-                // 座標情報が取れた場合は「緑枠の中に存在するか」を判定
                 if (resultPoints && resultPoints.length > 0 && videoElement) {
                     const vw = videoElement.videoWidth;
                     const vh = videoElement.videoHeight;
@@ -509,13 +507,11 @@ async function startBarcodeScanner() {
                         const offsetX = (displayWidth - videoRect.width) / 2;
                         const offsetY = (displayHeight - videoRect.height) / 2;
 
-                        // 緑枠のカメラ映像上の領域（座標範囲）を計算
                         const minX = ((guideRect.left - videoRect.left) + offsetX) / scale;
                         const maxX = minX + (guideRect.width / scale);
                         const minY = ((guideRect.top - videoRect.top) + offsetY) / scale;
                         const maxY = minY + (guideRect.height / scale);
 
-                        // コードの中心位置を計算
                         let sumX = 0, sumY = 0;
                         resultPoints.forEach(pt => {
                             sumX += pt.getX();
@@ -524,20 +520,20 @@ async function startBarcodeScanner() {
                         const centerX = sumX / resultPoints.length;
                         const centerY = sumY / resultPoints.length;
 
-                        // 中心点が緑枠の外にある場合は無視して終了（読み取らない）
+                        // 枠外の場合は読み取りを無視
                         if (centerX < minX || centerX > maxX || centerY < minY || centerY > maxY) {
                             return;
                         }
                     }
                 }
 
-                // 枠内にある場合のみ確定処理へ渡す
+                // 枠内にある場合のみ読み取り確定
                 handleBarcodeDetected(result.getText());
             }
         });
     } catch (err) {
         console.error("ZXing起動エラー:", err);
-        alert("カメラの起動に失敗しました。カメラアクセス権限を確認してください。");
+        alert("カメラの起動に失敗しました。iPhoneの「設定 > Safari > カメラ」でアクセス許可されているか確認してください。");
     }
 }
     startBarcodeScanner();
