@@ -474,38 +474,47 @@
 async function startBarcodeScanner() {
     videoElement = document.getElementById("video-element");
 
-    // 1. すでに動いているカメラ映像・ストリームを完全停止してリセットする（iOSフリーズ防止）
+    // 1. 既存のカメラセッションとトラックを確実に停止して解放を促す
     if (codeReader) {
         try {
             codeReader.reset();
-        } catch (e) {
-            console.log("Reset info:", e);
-        }
+        } catch (e) {}
     }
     if (videoElement && videoElement.srcObject) {
-        const stream = videoElement.srcObject;
-        if (stream.getTracks) {
-            stream.getTracks().forEach(track => track.stop()); // カメラの電源を落とす
+        const currentStream = videoElement.srcObject;
+        if (currentStream && currentStream.getTracks) {
+            currentStream.getTracks().forEach(track => {
+                track.stop(); // カメラの電源を落とす
+            });
         }
         videoElement.srcObject = null;
     }
 
-    // 2. 新しくインスタンスを生成
+    // iOSのカメラ開放待ち（少しだけウェイトを入れる）
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // 2. ZXingインスタンスの作成
     const hints = new Map();
     codeReader = new ZXing.BrowserMultiFormatReader(hints, 50);
 
     try {
-        // iPhone向けの設定（解像度指定を柔軟にして起動成功率を上げる）
+        // iOSで最も安定して背面カメラを掴むための設定（柔軟な要求）
         const constraints = {
             video: {
-                facingMode: { ideal: "environment" },
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
-            }
+                facingMode: { ideal: "environment" }
+            },
+            audio: false
         };
 
-        // 3. カメラを起動
-        await codeReader.decodeFromConstraints(constraints, 'video-element', (result, err) => {
+        // ブラウザ標準機能で安全にカメラのストリームを取得
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        // videoタグに流し込んで再生確認
+        videoElement.srcObject = stream;
+        await videoElement.play();
+
+        // 3. 画面に映像が載ってからZXingにスキャンを開始させる
+        codeReader.decodeFromStream(stream, 'video-element', (result, err) => {
             if (result) {
                 // 【枠外ガード処理】検出された座標のチェック
                 const resultPoints = result.getResultPoints();
@@ -548,9 +557,15 @@ async function startBarcodeScanner() {
                 handleBarcodeDetected(result.getText());
             }
         });
+
     } catch (err) {
-        console.error("ZXing起動エラー:", err);
-        alert("カメラの起動に失敗しました。ページを再読み込みしてください。");
+        console.error("カメラ起動エラー:", err);
+        // カメラがiOS側で解放されていない場合のフォールバックメッセージ
+        if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+            alert("カメラがまだ準備中です。数秒待ってから再読み込みしてください。");
+        } else {
+            alert("カメラの起動に失敗しました。アクセス権限を確認してください。");
+        }
     }
 }
     startBarcodeScanner();
