@@ -1000,6 +1000,27 @@ async function startBarcodeScanner() {
                 .catch(err => console.error('Service Worker 登録失敗:', err));
         });
     }
+
+// アプリがバックグラウンドに回った瞬間、または閉じられた瞬間にカメラを強制的・即座に電源オフにする
+window.addEventListener("pagehide", stopCameraCompletely);
+document.addEventListener("visibilitychange", function() {
+    if (document.hidden) {
+        stopCameraCompletely();
+    }
+});
+
+function stopCameraCompletely() {
+    if (codeReader) {
+        try { codeReader.reset(); } catch (e) {}
+    }
+    if (videoElement && videoElement.srcObject) {
+        const stream = videoElement.srcObject;
+        if (stream && stream.getTracks) {
+            stream.getTracks().forEach(track => track.stop()); // カメラの物理電源をオフ
+        }
+        videoElement.srcObject = null;
+    }
+}    
 </script>
 </body>
 </html>
