@@ -474,51 +474,56 @@
 async function startBarcodeScanner() {
     videoElement = document.getElementById("video-element");
 
-    // 1. 既存のカメラセッションとトラックを確実に停止して解放を促す
+    // 1. 既存のカメラセッションとトラックを完全停止
     if (codeReader) {
-        try {
-            codeReader.reset();
-        } catch (e) {}
+        try { codeReader.reset(); } catch (e) {}
     }
     if (videoElement && videoElement.srcObject) {
         const currentStream = videoElement.srcObject;
         if (currentStream && currentStream.getTracks) {
-            currentStream.getTracks().forEach(track => {
-                track.stop(); // カメラの電源を落とす
-            });
+            currentStream.getTracks().forEach(track => track.stop());
         }
         videoElement.srcObject = null;
     }
 
-    // iOSのカメラ開放待ち（少しだけウェイトを入れる）
-    await new Promise(resolve => setTimeout(resolve, 300));
+    // 2. iOSのカメラデバイス解放待ち（少し長めのウェイト）
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-    // 2. ZXingインスタンスの作成
     const hints = new Map();
     codeReader = new ZXing.BrowserMultiFormatReader(hints, 50);
 
-    try {
-        // iOSで最も安定して背面カメラを掴むための設定（柔軟な要求）
-        const constraints = {
-            video: {
-                facingMode: { ideal: "environment" }
-            },
-            audio: false
-        };
+    const constraints = {
+        video: { facingMode: { ideal: "environment" } },
+        audio: false
+    };
 
-        // ブラウザ標準機能で安全にカメラのストリームを取得
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        
-        // videoタグに流し込んで再生確認
+    // 3. カメラ起動（失敗した場合は最大3回リトライする安全処理）
+    let stream = null;
+    for (let i = 0; i < 3; i++) {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+            if (stream) break; // 成功したらループを抜ける
+        } catch (err) {
+            console.log(`カメラ起動試行 ${i + 1} 回目失敗。再試行します...`);
+            // iOSがカメラを解放するのを500ms待ってリトライ
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
+
+    if (!stream) {
+        alert("カメラが使用中です。一度アプリを閉じて数秒待ってから開き直してください。");
+        return;
+    }
+
+    try {
         videoElement.srcObject = stream;
         await videoElement.play();
 
-        // 3. 画面に映像が載ってからZXingにスキャンを開始させる
+        // 4. 映像が流れたらスキャンを開始
         codeReader.decodeFromStream(stream, 'video-element', (result, err) => {
             if (result) {
-                // 【枠外ガード処理】検出された座標のチェック
+                // 枠外ガード処理（位置判定）
                 const resultPoints = result.getResultPoints();
-                
                 if (resultPoints && resultPoints.length > 0 && videoElement) {
                     const vw = videoElement.videoWidth;
                     const vh = videoElement.videoHeight;
@@ -553,19 +558,13 @@ async function startBarcodeScanner() {
                     }
                 }
 
-                // 緑枠内にある場合のみ読み取り確定
+                // 確定処理へ
                 handleBarcodeDetected(result.getText());
             }
         });
 
     } catch (err) {
-        console.error("カメラ起動エラー:", err);
-        // カメラがiOS側で解放されていない場合のフォールバックメッセージ
-        if (err.name === "NotReadableError" || err.name === "TrackStartError") {
-            alert("カメラがまだ準備中です。数秒待ってから再読み込みしてください。");
-        } else {
-            alert("カメラの起動に失敗しました。アクセス権限を確認してください。");
-        }
+        console.error("再生エラー:", err);
     }
 }
     startBarcodeScanner();
