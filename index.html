@@ -473,24 +473,41 @@
 
 async function startBarcodeScanner() {
     videoElement = document.getElementById("video-element");
-    
+
+    // 1. すでに動いているカメラ映像・ストリームを完全停止してリセットする（iOSフリーズ防止）
+    if (codeReader) {
+        try {
+            codeReader.reset();
+        } catch (e) {
+            console.log("Reset info:", e);
+        }
+    }
+    if (videoElement && videoElement.srcObject) {
+        const stream = videoElement.srcObject;
+        if (stream.getTracks) {
+            stream.getTracks().forEach(track => track.stop()); // カメラの電源を落とす
+        }
+        videoElement.srcObject = null;
+    }
+
+    // 2. 新しくインスタンスを生成
     const hints = new Map();
     codeReader = new ZXing.BrowserMultiFormatReader(hints, 50);
 
     try {
-        // iOS(Safari)対策: undefined を渡して自動選択させるか、facingMode を使う
-        let constraints = {
+        // iPhone向けの設定（解像度指定を柔軟にして起動成功率を上げる）
+        const constraints = {
             video: {
-                facingMode: { ideal: "environment" }, // 背面カメラを優先
+                facingMode: { ideal: "environment" },
                 width: { ideal: 1280 },
                 height: { ideal: 720 }
             }
         };
 
-        // decodeFromConstraints を使用してiPhoneでのカメラ起動を安定化
-        codeReader.decodeFromConstraints(constraints, 'video-element', (result, err) => {
+        // 3. カメラを起動
+        await codeReader.decodeFromConstraints(constraints, 'video-element', (result, err) => {
             if (result) {
-                // 枠外ガード処理（検出座標の判定）
+                // 【枠外ガード処理】検出された座標のチェック
                 const resultPoints = result.getResultPoints();
                 
                 if (resultPoints && resultPoints.length > 0 && videoElement) {
@@ -520,20 +537,20 @@ async function startBarcodeScanner() {
                         const centerX = sumX / resultPoints.length;
                         const centerY = sumY / resultPoints.length;
 
-                        // 枠外の場合は読み取りを無視
+                        // 緑枠の外側にある場合は無視
                         if (centerX < minX || centerX > maxX || centerY < minY || centerY > maxY) {
                             return;
                         }
                     }
                 }
 
-                // 枠内にある場合のみ読み取り確定
+                // 緑枠内にある場合のみ読み取り確定
                 handleBarcodeDetected(result.getText());
             }
         });
     } catch (err) {
         console.error("ZXing起動エラー:", err);
-        alert("カメラの起動に失敗しました。iPhoneの「設定 > Safari > カメラ」でアクセス許可されているか確認してください。");
+        alert("カメラの起動に失敗しました。ページを再読み込みしてください。");
     }
 }
     startBarcodeScanner();
