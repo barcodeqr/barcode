@@ -253,30 +253,58 @@ let code2 = null;
 let detectionBuffer = [];
 const REQUIRED_CONSISTENT_READS = 2;
 
-// Web Audio API による効果音再生機能
+// ==========================================
+// Web Audio API による効果音再生機能（修正版）
+// ==========================================
 let audioCtx = null;
+
 function initAudio() {
-    if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
+    try {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+        // 無音のダミー音を鳴らしてiOS等のブラウザ音声自動再生制限を完全に解除する
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        gain.gain.value = 0.001; // ほぼ無音
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.01);
+    } catch (e) {
+        console.error("Audio initialization failed:", e);
     }
 }
 
 function playBeep(freq, type, duration) {
-    if (!audioCtx) return;
+    // 再生前にコンテキストが休止していないか確認・復帰
+    if (!audioCtx) {
+        initAudio();
+    } else if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+
     try {
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = type;
         osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        
+        // 音量のエンベロープを設定してプチ音（ノイズ）を防ぐ
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+
         osc.connect(gain);
         gain.connect(audioCtx.destination);
+        
         osc.start();
         osc.stop(audioCtx.currentTime + duration);
-    } catch(e){}
+    } catch(e) {
+        console.error("Sound play error:", e);
+    }
 }
 
 function playScanSound() { playBeep(2000, 'sine', 0.1); }
@@ -523,11 +551,18 @@ function setupEventListeners() {
     const startAudioBtn = document.getElementById("start-audio-btn");
     if (startAudioBtn) {
         startAudioBtn.addEventListener("click", () => {
-            initAudio();
+            initAudio(); // ユーザー操作の直下で確実にAudioContextを有効化
             startBarcodeScanner();
             startAudioBtn.style.display = "none";
         });
     }
+
+    // バックグラウンド復帰時や画面タップ時にも念のためAudioContextのロック解除を試みる
+    document.body.addEventListener('touchstart', () => {
+        if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }, { passive: true });
 
     // モード切り替えボタン
     barcodeModeBtn.addEventListener("click", () => {
