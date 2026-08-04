@@ -207,6 +207,14 @@
 
 <body>
 
+<!-- タスクキル後の起動時用オーバーレイ -->
+<div id="camera-start-overlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white;">
+    <p style="font-size: 18px; margin-bottom: 20px; font-weight: bold;">スキャナーを起動します</p>
+    <button id="start-camera-btn" style="padding: 15px 40px; font-size: 18px; font-weight: bold; background: #4CAF50; color: white; border: none; border-radius: 30px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+        カメラを開始する
+    </button>
+</div>
+
     <div class="title-box">
         <div class="title-main">💊 コード・ＱＲ照合システム</div>
         <div class="title-sub">Barcode & QR Matching System</div>
@@ -290,57 +298,74 @@
     const audioMatch = new Audio('pingpong.mp3');
     const audioMismatch = new Audio('boo.mp3');
 
-    // DOM読み込み完了後に全初期化を実行
-    document.addEventListener("DOMContentLoaded", () => {
-        // DOM要素の取得
-        guide = document.querySelector(".scan-area-guide");
-        scanResult = document.getElementById("scan-result");
-        box1 = document.getElementById("box1");
-        box2 = document.getElementById("box2");
-        code1IdLabel = document.getElementById("code1-id");
-        code1NameLabel = document.getElementById("code1-name");
-        code1ExtraLabel = document.getElementById("code1-extra");
-        code2IdLabel = document.getElementById("code2-id");
-        code2NameLabel = document.getElementById("code2-name");
-        code2ExtraLabel = document.getElementById("code2-extra");
-        ocrCanvas = document.getElementById("ocr-canvas");
-        ocrReadBtn = document.getElementById("ocr-read-btn");
-        ocrModeBtn = document.getElementById("ocr-mode-btn");
-        barcodeModeBtn = document.getElementById("barcode-mode-btn");
-        flyingCode = document.getElementById("flying-code");
-        historyBtn = document.getElementById("history-btn");
-        historyArea = document.getElementById("history-area");
-        clearHistoryBtn = document.getElementById("clear-history-btn");
-        resetBtn = document.getElementById("reset-btn");
-        csvBtn = document.getElementById("csv-btn");
-        csvInput = document.getElementById("csv-file-input");
-        csvStatus = document.getElementById("csv-status");
-        clearCsvBtn = document.getElementById("clear-csv-btn");
-        videoElement = document.getElementById("video-element");
+// ⭕ 修正後：ボタンタップでカメラを初回起動させる
+document.addEventListener("DOMContentLoaded", () => {
+    // DOM要素の取得
+    guide = document.querySelector(".scan-area-guide");
+    scanResult = document.getElementById("scan-result");
+    box1 = document.getElementById("box1");
+    box2 = document.getElementById("box2");
+    code1IdLabel = document.getElementById("code1-id");
+    code1NameLabel = document.getElementById("code1-name");
+    code1ExtraLabel = document.getElementById("code1-extra");
+    code2IdLabel = document.getElementById("code2-id");
+    code2NameLabel = document.getElementById("code2-name");
+    code2ExtraLabel = document.getElementById("code2-extra");
+    ocrCanvas = document.getElementById("ocr-canvas");
+    ocrReadBtn = document.getElementById("ocr-read-btn");
+    ocrModeBtn = document.getElementById("ocr-mode-btn");
+    barcodeModeBtn = document.getElementById("barcode-mode-btn");
+    flyingCode = document.getElementById("flying-code");
+    historyBtn = document.getElementById("history-btn");
+    historyArea = document.getElementById("history-area");
+    clearHistoryBtn = document.getElementById("clear-history-btn");
+    resetBtn = document.getElementById("reset-btn");
+    csvBtn = document.getElementById("csv-btn");
+    csvInput = document.getElementById("csv-file-input");
+    csvStatus = document.getElementById("csv-status");
+    clearCsvBtn = document.getElementById("clear-csv-btn");
+    videoElement = document.getElementById("video-element");
 
-        // マスターデータ復元
-        const savedMaster = localStorage.getItem("masterDataMap");
-        const savedMasterTime = localStorage.getItem("masterDataTime");
-        if (savedMaster) {
-            try {
-                masterDataMap = JSON.parse(savedMaster);
-                const count = Object.keys(masterDataMap).length;
-                if (count > 0 && savedMasterTime && csvStatus) {
-                    csvStatus.innerHTML = `✅ 保存済みマスターデータ適用中<br>(${savedMasterTime} 読込 / ${count} 件)`;
-                    csvStatus.style.color = "#008800";
-                }
-            } catch (e) {
-                console.error("マスターデータの復元に失敗しました", e);
+    // マスターデータ復元
+    const savedMaster = localStorage.getItem("masterDataMap");
+    const savedMasterTime = localStorage.getItem("masterDataTime");
+    if (savedMaster) {
+        try {
+            masterDataMap = JSON.parse(savedMaster);
+            const count = Object.keys(masterDataMap).length;
+            if (count > 0 && savedMasterTime && csvStatus) {
+                csvStatus.innerHTML = `✅ 保存済みマスターデータ適用中<br>(${savedMasterTime} 読込 / ${count} 件)`;
+                csvStatus.style.color = "#008800";
             }
+        } catch (e) {
+            console.error("マスターデータの復元に失敗しました", e);
         }
+    }
 
-        // イベントリスナーのセットアップ
-        setupEventListeners();
+    // イベントリスナーのセットアップ
+    setupEventListeners();
 
-        // 初回カメラ起動
-        startBarcodeScanner();
-    });
+    // 【ここを変更】画面タップ（ボタン押下）イベントでカメラと音声を起動する
+    const overlay = document.getElementById("camera-start-overlay");
+    const startBtn = document.getElementById("start-camera-btn");
 
+    if (startBtn) {
+        startBtn.addEventListener("click", async () => {
+            // iOS等での「音声再生拒否」を解放
+            audioScan.play().then(() => { audioScan.pause(); audioScan.currentTime = 0; }).catch(()=>{});
+            audioMatch.play().then(() => { audioMatch.pause(); audioMatch.currentTime = 0; }).catch(()=>{});
+            audioMismatch.play().then(() => { audioMismatch.pause(); audioMismatch.currentTime = 0; }).catch(()=>{});
+
+            // オーバーレイ画面を非表示にする
+            if (overlay) {
+                overlay.style.display = "none";
+            }
+
+            // ユーザー操作の文脈（タップイベント内）で安全にカメラを起動
+            await startBarcodeScanner();
+        });
+    }
+});
     // カメラ停止関数（完全一括停止）
     async function stopCamera() {
         if (codeReader) {
