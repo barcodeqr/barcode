@@ -1001,26 +1001,118 @@ async function startBarcodeScanner() {
         });
     }
 
-// アプリがバックグラウンドに回った瞬間、または閉じられた瞬間にカメラを強制的・即座に電源オフにする
-window.addEventListener("pagehide", stopCameraCompletely);
-document.addEventListener("visibilitychange", function() {
-    if (document.hidden) {
-        stopCameraCompletely();
+// カメラを安全かつ確実に停止する共通関数
+function stopCamera() {
+    return new Promise((resolve) => {
+        // ZXingコードリーダーのリセット
+        if (typeof codeReader !== 'undefined' && codeReader) {
+            try {
+                codeReader.reset();
+            } catch (e) {
+                console.warn("codeReader reset error:", e);
+            }
+        }
+
+        // video要素のストリーム取得＆停止
+        const videoElem = document.getElementById('video-element');
+        if (videoElem && videoElem.srcObject) {
+            const stream = videoElem.srcObject;
+            const tracks = stream.getTracks();
+            tracks.forEach(track => {
+                track.stop(); // 各トラック（ビデオ/オーディオ）を確実に停止
+                stream.removeTrack(track);
+            });
+            videoElem.srcObject = null;
+        }
+
+        // グローバルに保持しているstream変数の停止（もしあれば）
+        if (window.localStream) {
+            window.localStream.getTracks().forEach(track => track.stop());
+            window.localStream = null;
+        }
+
+        // わずかなウェイトを置いてOSにカメラ解放を認識させる
+        setTimeout(() => {
+            resolve();
+        }, 300);
+    });
+}
+
+// カメラを起動するメイン関数
+async function startCamera() {
+    // 起動前に一度必ずクリーンアップを行う（タスクキル後の不整合防止）
+    await stopCamera();
+
+    try {
+        // カメラデバイスの取得（環境に合わせて標準的なMediaDevicesを使用）
+        const constraints = {
+            video: {
+                facingMode: { exact: "environment" }, // 背面カメラ指定（無理な場合は { facingMode: "environment" }）
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            }
+        };
+
+        // もしexact指定でエラーが出る環境（PC等）のフォールバック
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (err) {
+            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        }
+
+        window.localStream = stream; // グローバル保持
+
+        const videoElem = document.getElementById('video-element');
+        if (videoElem) {
+            videoElem.srcObject = stream;
+            // iOS対策：playsinlineとautoplayを明示的にセットして再生
+            videoElem.setAttribute("playsinline", true);
+            await videoElem.play();
+        }
+
+        // ZXingなどバーコードライブラリ側の処理を継続...
+        // initBarcodeScanner(stream);
+
+    } catch (error) {
+        console.error("カメラ起動エラー:", error);
+        alert("カメラの起動に失敗しました。少し待ってから再読み込みボタンを押してください。");
+    }
+}
+
+// ページが隠れた時・アプリが完全終了される直前の処理
+const cleanupOnExit = () => {
+    if (window.localStream) {
+        window.localStream.getTracks().forEach(track => track.stop());
+    }
+    const videoElem = document.getElementById('video-element');
+    if (videoElem && videoElem.srcObject) {
+        const stream = videoElem.srcObject;
+        stream.getTracks().forEach(track => track.stop());
+    }
+};
+
+// 【修正後】アプリがバックグラウンドに移動・復帰するイベントの制御
+window.addEventListener('pagehide', cleanupOnExit, { capture: true });
+window.addEventListener('beforeunload', cleanupOnExit, { capture: true });
+
+document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'hidden') {
+        // 画面が隠れたらカメラを停止してOSに解放する
+        cleanupOnExit();
+    } else if (document.visibilityState === 'visible') {
+        // 画面に戻ってきたら自動でカメラを再起動・スキャン再開する
+        console.log("画面復帰を検知: カメラを再起動します");
+        
+        // モードに応じたスタート関数を実行
+        if (currentMode === "barcode") {
+            await startBarcodeScanner();
+        } else {
+            await startCamera();
+        }
     }
 });
 
-function stopCameraCompletely() {
-    if (codeReader) {
-        try { codeReader.reset(); } catch (e) {}
-    }
-    if (videoElement && videoElement.srcObject) {
-        const stream = videoElement.srcObject;
-        if (stream && stream.getTracks) {
-            stream.getTracks().forEach(track => track.stop()); // カメラの物理電源をオフ
-        }
-        videoElement.srcObject = null;
-    }
-}    
 </script>
 </body>
 </html>
