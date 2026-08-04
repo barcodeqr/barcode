@@ -20,6 +20,7 @@
         #start-audio-btn {
             background: #ffcc00; color: #333; font-weight: bold; border: 2px solid #ff9900;
             padding: 15px 30px; font-size: 18px; margin-bottom: 15px; animation: pulse 1.5s infinite;
+            cursor: pointer; border-radius: 10px;
         }
         @keyframes pulse {
             0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); }
@@ -119,35 +120,19 @@
 
         #reset-btn{ width: 220px; height: 60px; font-size: 24px; font-weight: bold; border-radius: 10px; background: #f57c00; color: white; box-shadow: 0 5px 0 #c25b00, 0 8px 18px rgba(0,0,0,.25); }
 
-        #flying-code{
-            position: fixed; left: 50%; top: 45%; font-size: 32px; font-weight: bold; color: #00ff66;
-            text-shadow: 0 0 10px #00ff66, 0 0 20px #00ff66; opacity: 0; pointer-events: none; z-index: 9999;
-            transition: transform .8s ease, opacity .8s ease;
-        }
-
         #history-btn, #csv-btn { width: 220px; height: 60px; font-size: 22px; font-weight: bold; border-radius: 10px; color: #fff; }
         #history-btn { background: linear-gradient(to bottom,#4da3ff,#007aff); box-shadow: 0 5px 0 #005fc2, 0 8px 18px rgba(0,0,0,.25); }
         #csv-btn { background: linear-gradient(to bottom,#4CAF50,#2E7D32); box-shadow: 0 5px 0 #1B5E20, 0 8px 18px rgba(0,0,0,.25); }
         
         #clear-history-btn {
-            min-width: 220px;
-            width: auto;
-            height: 60px;
-            padding: 0 20px;
-            font-size: 22px;
-            font-weight: bold;
-            border-radius: 10px;
-            color: #fff;
-            white-space: nowrap;
-            box-sizing: border-box;
+            min-width: 220px; width: auto; height: 60px; padding: 0 20px;
+            font-size: 22px; font-weight: bold; border-radius: 10px; color: #fff;
+            white-space: nowrap; box-sizing: border-box;
             background: linear-gradient(to bottom,#ff7777,#d9534f);
             box-shadow: 0 5px 0 #a52a2a, 0 8px 18px rgba(0,0,0,.25);
         }
 
-        #clear-csv-btn {
-            white-space: nowrap;
-            box-sizing: border-box;
-        }
+        #clear-csv-btn { white-space: nowrap; box-sizing: border-box; }
 
         #ocr-read-btn{ display: none; width: 260px; height: 65px; margin: 18px auto; font-size: 24px; font-weight: bold; background: linear-gradient(to bottom,#4CAF50,#2E7D32); }
 
@@ -157,12 +142,10 @@
             text-align: left; box-shadow: 0 2px 8px rgba(0,0,0,.15); font-size: 15px; line-height: 1.6;
         }
 
-        .history-item{ border-bottom: 1px solid #dddddd; padding: 8px 0; }
+        .history-item{ border-bottom: 1px solid #dddddd; padding: 8px 0; margin-bottom: 5px;}
         .history-item:last-child{ border-bottom: none; }
-        .history-ok{ color: #008800; font-weight: bold; }
-        .history-ng{ color: #cc0000; font-weight: bold; }
-        .history-item.ok{ background: #eaf8ea; border-left: 6px solid #28a745; }
-        .history-item.ng{ background: #fdeaea; border-left: 6px solid #dc3545; }
+        .history-item.ok{ background: #eaf8ea; border-left: 6px solid #28a745; padding-left: 8px; }
+        .history-item.ng{ background: #fdeaea; border-left: 6px solid #dc3545; padding-left: 8px; }
 
         .title-box{
             width: 100%; max-width: 500px; margin: 15px auto 20px; padding: 18px 10px; box-sizing: border-box;
@@ -170,19 +153,8 @@
             border-radius: 14px; border: 2px solid rgba(255,255,255,0.25); box-shadow: 0 5px 15px rgba(0,0,0,0.25);
         }
 
-        .title-main {
-          font-size: clamp(12px, 4.5vw, 26px);
-          white-space: nowrap;
-          font-weight: bold;
-          letter-spacing: 1px;
-        }
-
-        .title-sub {
-          margin-top: 6px;
-          font-size: 13px;
-          letter-spacing: 2px;
-          color: rgba(255,255,255,0.9);
-        }
+        .title-main { font-size: clamp(12px, 4.5vw, 26px); white-space: nowrap; font-weight: bold; letter-spacing: 1px; }
+        .title-sub { margin-top: 6px; font-size: 13px; letter-spacing: 2px; color: rgba(255,255,255,0.9); }
 
         #mode-area{ margin: 15px 0; }
 
@@ -197,23 +169,11 @@
             border-color: #0b7a35; box-shadow: 0 3px 0 #0b7a35, 0 0 18px rgba(34,197,94,.7); transform: translateY(2px);
         }
         
-        #instruction-text {
-          font-size: clamp(10px, 3.5vw, 16px); 
-          white-space: nowrap;       
-          text-align: center;
-        }
+        #instruction-text { font-size: clamp(10px, 3.5vw, 16px); white-space: nowrap; text-align: center; }
     </style>
 </head>
 
 <body>
-
-<!-- タスクキル後や権限ブロック時の手動起動用オーバーレイ（初期非表示） -->
-<div id="camera-start-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; color: white;">
-    <p style="font-size: 18px; margin-bottom: 20px; font-weight: bold;">スキャナーを起動します</p>
-    <button id="start-camera-btn" style="padding: 15px 40px; font-size: 18px; font-weight: bold; background: #4CAF50; color: white; border: none; border-radius: 30px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-        カメラを開始する
-    </button>
-</div>
 
     <div class="title-box">
         <div class="title-main">💊 コード・ＱＲ照合システム</div>
@@ -231,7 +191,7 @@
     </div>
 
     <div id="mode-area">
-        <button id="barcode-mode-btn">コード照合</button>
+        <button id="barcode-mode-btn" class="mode-active">コード照合</button>
         <button id="ocr-mode-btn">文字照合</button>
     </div>
     
@@ -267,42 +227,23 @@
     <button id="clear-history-btn">履歴全削除</button>
 
     <div id="history-area"></div>
-    <div id="flying-code"></div>
-
-    <canvas id="ocr-canvas" style="display:none; margin:20px auto; border:3px solid red; max-width:100%;"></canvas>
+    <canvas id="ocr-canvas" style="display:none;"></canvas>
 
 <script>
 // ==========================================
 // グローバル変数・状態管理
 // ==========================================
-let guide = null;
-let scanResult = null;
-let box1 = null;
-let box2 = null;
-let code1IdLabel = null;
-let code1NameLabel = null;
-let code1ExtraLabel = null;
-let code2IdLabel = null;
-let code2NameLabel = null;
-let code2ExtraLabel = null;
-let ocrCanvas = null;
-let ocrReadBtn = null;
-let ocrModeBtn = null;
-let barcodeModeBtn = null;
-let flyingCode = null;
-let historyBtn = null;
-let historyArea = null;
-let clearHistoryBtn = null;
-let resetBtn = null;
-let csvBtn = null;
-let csvInput = null;
-let csvStatus = null;
-let clearCsvBtn = null;
-let videoElement = null;
+let guide = null, scanResult = null, box1 = null, box2 = null;
+let code1IdLabel = null, code1NameLabel = null, code1ExtraLabel = null;
+let code2IdLabel = null, code2NameLabel = null, code2ExtraLabel = null;
+let ocrCanvas = null, ocrReadBtn = null, ocrModeBtn = null, barcodeModeBtn = null;
+let historyBtn = null, historyArea = null, clearHistoryBtn = null, resetBtn = null;
+let csvBtn = null, csvInput = null, csvStatus = null, clearCsvBtn = null, videoElement = null;
 
 let codeReader = null;
 let currentStream = null;
 let masterDataMap = {};
+let scanHistory = [];
 
 let currentMode = "barcode"; // "barcode" | "ocr"
 let isScanning = true;
@@ -310,19 +251,48 @@ let code1 = null;
 let code2 = null;
 
 let detectionBuffer = [];
-const REQUIRED_CONSISTENT_READS = 2; // 読み取り精度の安定化カウント
+const REQUIRED_CONSISTENT_READS = 2;
 
-// 効果音（プロジェクト環境に合わせて保持）
-const audioScan = new Audio();
-const audioMatch = new Audio();
-const audioMismatch = new Audio();
+// Web Audio API による効果音再生機能
+let audioCtx = null;
+function initAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+}
 
+function playBeep(freq, type, duration) {
+    if (!audioCtx) return;
+    try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    } catch(e){}
+}
+
+function playScanSound() { playBeep(2000, 'sine', 0.1); }
+function playMatchSound() {
+    playBeep(1000, 'sine', 0.1);
+    setTimeout(() => playBeep(1500, 'sine', 0.2), 120);
+}
+function playMismatchSound() {
+    playBeep(400, 'sawtooth', 0.2);
+    setTimeout(() => playBeep(300, 'sawtooth', 0.3), 200);
+}
 
 // ==========================================
 // 1. DOM読み込み完了後の初期化
 // ==========================================
-document.addEventListener("DOMContentLoaded", async () => {
-    // DOM要素の取得
+document.addEventListener("DOMContentLoaded", () => {
     guide = document.querySelector(".scan-area-guide");
     scanResult = document.getElementById("scan-result");
     box1 = document.getElementById("box1");
@@ -337,7 +307,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     ocrReadBtn = document.getElementById("ocr-read-btn");
     ocrModeBtn = document.getElementById("ocr-mode-btn");
     barcodeModeBtn = document.getElementById("barcode-mode-btn");
-    flyingCode = document.getElementById("flying-code");
     historyBtn = document.getElementById("history-btn");
     historyArea = document.getElementById("history-area");
     clearHistoryBtn = document.getElementById("clear-history-btn");
@@ -364,176 +333,64 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    // イベントリスナーのセットアップ
+    // 履歴データ復元
+    const savedHistory = localStorage.getItem("scanHistory");
+    if (savedHistory) {
+        try { scanHistory = JSON.parse(savedHistory); } catch(e){}
+    }
+
     setupEventListeners();
-
-    // 手動起動ボタン（フォールバック用）のイベント設定
-    const overlay = document.getElementById("camera-start-overlay");
-    const startBtn = document.getElementById("start-camera-btn");
-
-    if (startBtn) {
-        startBtn.addEventListener("click", async () => {
-            // iOS等での音声再生制限を解除
-            audioScan.play().then(() => { audioScan.pause(); audioScan.currentTime = 0; }).catch(() => {});
-            audioMatch.play().then(() => { audioMatch.pause(); audioMatch.currentTime = 0; }).catch(() => {});
-            audioMismatch.play().then(() => { audioMismatch.pause(); audioMismatch.currentTime = 0; }).catch(() => {});
-
-            if (overlay) overlay.style.display = "none";
-            await startBarcodeScanner();
-        });
-    }
-
-    // 🚀 画面読み込み時に自動でカメラ起動を試行
-    try {
-        await startBarcodeScanner();
-    } catch (err) {
-        console.warn("自動カメラ起動に失敗したため手動起動ボタンを表示します:", err);
-        // 自動起動がブロックされた場合のみオーバーレイを表示
-        if (overlay) overlay.style.display = "flex";
-    }
 });
 
 // ==========================================
-// 2. カメラ制御処理（完全解放＆安全起動）
+// 2. カメラ制御処理
 // ==========================================
-
-// カメラ完全停止関数
-async function stopCamera() {
+function stopCamera() {
     if (codeReader) {
-        try { 
-            codeReader.reset(); 
-        } catch (e) {
-            console.error("ZXing Reset Error:", e);
-        }
+        try { codeReader.reset(); } catch (e) {}
     }
     if (currentStream) {
-        currentStream.getTracks().forEach(track => {
-            track.stop(); // OSレベルでカメラトラックを停止
-        });
+        currentStream.getTracks().forEach(track => track.stop());
         currentStream = null;
     }
     if (videoElement) {
         videoElement.pause();
         videoElement.srcObject = null;
-        videoElement.load(); // ビデオ要素を完全に初期化
     }
-    // OS側のカメラリソース完全解放待ち
-    await new Promise(resolve => setTimeout(resolve, 500));
 }
 
-// カメラ起動関数（メイン）
 async function startBarcodeScanner() {
-    await stopCamera(); // 念のため事前に完全停止
-
-    if (!videoElement) {
-        videoElement = document.getElementById("video-element");
-    }
+    stopCamera();
 
     const hints = new Map();
     codeReader = new ZXing.BrowserMultiFormatReader(hints, 50);
 
-    const constraints = {
-        video: { facingMode: { ideal: "environment" } },
-        audio: false
-    };
-
-    let stream = null;
-    for (let i = 0; i < 3; i++) {
-        try {
-            stream = await navigator.mediaDevices.getUserMedia(constraints);
-            if (stream && stream.getVideoTracks().length > 0) {
-                const track = stream.getVideoTracks()[0];
-                if (track.readyState === "live") {
-                    break;
-                }
-            }
-        } catch (err) {
-            console.log(`カメラ起動試行 ${i + 1} 回目失敗。再試行...`, err);
-            await new Promise(resolve => setTimeout(resolve, 500));
-        }
-    }
-
-    if (!stream) {
-        alert("カメラの起動に失敗しました。アプリを一度閉じるか、画面を再読み込みしてください。");
-        return;
-    }
-
-    currentStream = stream;
-
     try {
-        // iOS自動再生制限対策
-        videoElement.muted = true;
-        videoElement.setAttribute("playsinline", "true");
-        videoElement.setAttribute("webkit-playsinline", "true");
-
-        // 映像ソースの設定
-        videoElement.srcObject = stream;
-
-        // videoのメタデータ読み込み完了（サイズ確定）を待ってからplayを実行する
-        await new Promise((resolve) => {
-            if (videoElement.readyState >= 1) {
-                resolve();
-            } else {
-                videoElement.onloadedmetadata = () => resolve();
-            }
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: "environment" } },
+            audio: false
         });
 
+        currentStream = stream;
+        videoElement.srcObject = stream;
         await videoElement.play();
 
-        // ZXingにDOMオブジェクト（videoElement）を直接渡してデコード開始
         codeReader.decodeFromStream(stream, videoElement, (result, err) => {
-            if (result) {
-                const resultPoints = result.getResultPoints();
-                if (resultPoints && resultPoints.length > 0 && videoElement && guide) {
-                    const vw = videoElement.videoWidth;
-                    const vh = videoElement.videoHeight;
-                    const guideRect = guide.getBoundingClientRect();
-                    const videoRect = videoElement.getBoundingClientRect();
-
-                    if (vw > 0 && vh > 0 && videoRect.width > 0) {
-                        const scale = Math.max(videoRect.width / vw, videoRect.height / vh);
-                        const displayWidth = vw * scale;
-                        const displayHeight = vh * scale;
-
-                        const offsetX = (displayWidth - videoRect.width) / 2;
-                        const offsetY = (displayHeight - videoRect.height) / 2;
-
-                        const minX = ((guideRect.left - videoRect.left) + offsetX) / scale;
-                        const maxX = minX + (guideRect.width / scale);
-                        const minY = ((guideRect.top - videoRect.top) + offsetY) / scale;
-                        const maxY = minY + (guideRect.height / scale);
-
-                        let sumX = 0, sumY = 0;
-                        resultPoints.forEach(pt => {
-                            sumX += pt.getX();
-                            sumY += pt.getY();
-                        });
-                        const centerX = sumX / resultPoints.length;
-                        const centerY = sumY / resultPoints.length;
-
-                        // ガイド枠外の読み取りを除外
-                        if (centerX < minX || centerX > maxX || centerY < minY || centerY > maxY) {
-                            return;
-                        }
-                    }
-                }
+            if (result && isScanning && currentMode === "barcode") {
                 handleBarcodeDetected(result.getText());
             }
         });
-
     } catch (err) {
-        console.error("カメラ再生・解析エラー:", err);
+        console.error("カメラ起動エラー:", err);
+        alert("カメラの起動に失敗しました。カメラへのアクセス許可を確認してください。");
     }
 }
-
 
 // ==========================================
 // 3. バーコード・スキャンロジック
 // ==========================================
 function handleBarcodeDetected(codeStr) {
-    if (currentMode !== "barcode") return;
-    if (!isScanning) return;
-    if (!codeStr) return;
+    if (!isScanning || !codeStr) return;
 
     detectionBuffer.push(codeStr);
     if (detectionBuffer.length < REQUIRED_CONSISTENT_READS) return;
@@ -551,66 +408,226 @@ function handleBarcodeDetected(codeStr) {
         isScanning = false;
         code1 = confirmedCode;
         setCode(1, confirmedCode);
-        setTimeout(() => { isScanning = true; }, 1500);
+        playScanSound();
+        setTimeout(() => { isScanning = true; }, 1200);
     } else if (!code2) {
+        isScanning = false;
         code2 = confirmedCode;
         setCode(2, confirmedCode);
-        setTimeout(() => { checkMatch(); }, 800);
-        isScanning = false;
+        playScanSound();
+        setTimeout(() => { checkMatch(); }, 500);
     }
 }
 
+// ==========================================
+// 4. UI更新・照合・履歴ロジック
+// ==========================================
+function setCode(boxNum, codeVal) {
+    const item = masterDataMap[codeVal] || { name: "（未登録）", extras: [] };
+    const nameText = item.name;
+    const extraText = item.extras ? item.extras.join(" / ") : "";
+
+    if (boxNum === 1) {
+        code1IdLabel.textContent = codeVal;
+        code1NameLabel.textContent = nameText;
+        if (extraText) {
+            code1ExtraLabel.textContent = extraText;
+            code1ExtraLabel.style.display = "block";
+        }
+        box1.classList.add("filled");
+    } else {
+        code2IdLabel.textContent = codeVal;
+        code2NameLabel.textContent = nameText;
+        if (extraText) {
+            code2ExtraLabel.textContent = extraText;
+            code2ExtraLabel.style.display = "block";
+        }
+        box2.classList.add("filled");
+    }
+}
+
+function checkMatch() {
+    const isMatch = (code1 === code2);
+    
+    if (isMatch) {
+        scanResult.textContent = "OK";
+        scanResult.className = "ok";
+        box1.classList.add("match");
+        box2.classList.add("match");
+        playMatchSound();
+    } else {
+        scanResult.textContent = "NG";
+        scanResult.className = "ng";
+        guide.classList.add("ng");
+        box1.classList.add("mismatch");
+        box2.classList.add("mismatch");
+        playMismatchSound();
+    }
+
+    // 履歴に追加
+    const now = new Date();
+    const timeStr = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+    scanHistory.unshift({
+        time: timeStr,
+        code1: code1,
+        code2: code2,
+        result: isMatch ? "一致" : "不一致"
+    });
+    localStorage.setItem("scanHistory", JSON.stringify(scanHistory));
+    updateHistoryUI();
+}
+
+function resetScan() {
+    code1 = null;
+    code2 = null;
+    detectionBuffer = [];
+    isScanning = true;
+
+    code1IdLabel.textContent = "-";
+    code1NameLabel.textContent = "";
+    code1ExtraLabel.textContent = "";
+    code1ExtraLabel.style.display = "none";
+
+    code2IdLabel.textContent = "-";
+    code2NameLabel.textContent = "";
+    code2ExtraLabel.textContent = "";
+    code2ExtraLabel.style.display = "none";
+
+    box1.className = "code-display";
+    box2.className = "code-display";
+    guide.className = currentMode === "ocr" ? "scan-area-guide ocr-mode" : "scan-area-guide";
+    scanResult.className = "";
+    scanResult.textContent = "";
+}
+
+function updateHistoryUI() {
+    if (!historyArea) return;
+    if (scanHistory.length === 0) {
+        historyArea.innerHTML = "<div>履歴はありません</div>";
+        return;
+    }
+    historyArea.innerHTML = scanHistory.map(item => `
+        <div class="history-item ${item.result === '一致' ? 'ok' : 'ng'}">
+            <strong>[${item.time}] ${item.result}</strong><br>
+            1: ${item.code1}<br>
+            2: ${item.code2}
+        </div>
+    `).join("");
+}
 
 // ==========================================
-// 4. CSV・マスターデータ解析処理
+// 5. イベントリスナー定義
 // ==========================================
-function parseCSVData(csvText) {
-    masterDataMap = {};
-    const lines = csvText.split(/\r\n|\n/);
-    let count = 0;
+function setupEventListeners() {
+    // 画面タップ・起動ボタン
+    const startAudioBtn = document.getElementById("start-audio-btn");
+    if (startAudioBtn) {
+        startAudioBtn.addEventListener("click", () => {
+            initAudio();
+            startBarcodeScanner();
+            startAudioBtn.style.display = "none";
+        });
+    }
 
-    lines.forEach(line => {
-        const cols = line.split(",").map(col => col.replace(/^["']|["']$/g, "").trim());
-        if (cols.length >= 2 && cols[0]) {
-            const rawId = cols[0];
-            const name = cols[1];
-            const extras = cols.slice(2);
+    // モード切り替えボタン
+    barcodeModeBtn.addEventListener("click", () => {
+        currentMode = "barcode";
+        barcodeModeBtn.classList.add("mode-active");
+        ocrModeBtn.classList.remove("mode-active");
+        guide.classList.remove("ocr-mode");
+        ocrReadBtn.style.display = "none";
+        document.getElementById("instruction-text").textContent = "緑の枠内にコードまたはQRを合わせてください";
+        resetScan();
+    });
 
-            const itemObj = { name: name, extras: extras };
+    ocrModeBtn.addEventListener("click", () => {
+        currentMode = "ocr";
+        ocrModeBtn.classList.add("mode-active");
+        barcodeModeBtn.classList.remove("mode-active");
+        guide.classList.add("ocr-mode");
+        ocrReadBtn.style.display = "block";
+        document.getElementById("instruction-text").textContent = "枠内に文字を合わせて「文字を読み取る」を押してください";
+        resetScan();
+    });
 
-            masterDataMap[rawId] = itemObj;
+    // OCR読み取り実行ボタン
+    ocrReadBtn.addEventListener("click", async () => {
+        if (!videoElement || videoElement.readyState !== 4) return;
+        
+        // Canvasにビデオ領域を描画してOCR解析
+        const canvas = ocrCanvas;
+        canvas.width = videoElement.videoWidth;
+        canvas.height = videoElement.videoHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
 
-            // 数値形式の場合、6桁ゼロパディング版も登録
-            if (/^\d+$/.test(rawId)) {
-                const paddedId = rawId.padStart(6, '0');
-                masterDataMap[paddedId] = itemObj;
+        ocrReadBtn.disabled = true;
+        ocrReadBtn.textContent = "解析中...";
+
+        try {
+            const worker = await Tesseract.createWorker("jpn");
+            const ret = await worker.recognize(canvas);
+            await worker.terminate();
+            
+            const text = ret.data.text.replace(/\s+/g, "");
+            if (text) {
+                handleBarcodeDetected(text);
+            } else {
+                alert("文字を認識できませんでした。");
             }
-            count++;
+        } catch(e) {
+            console.error("OCRエラー:", e);
+            alert("OCR読み取りに失敗しました。");
+        } finally {
+            ocrReadBtn.disabled = false;
+            ocrReadBtn.textContent = "文字を読み取る";
         }
     });
 
-    const now = new Date();
-    const formattedTime = now.getFullYear() + "/" +
-        String(now.getMonth() + 1).padStart(2, '0') + "/" +
-        String(now.getDate()).padStart(2, '0') + " " +
-        String(now.getHours()).padStart(2, '0') + ":" +
-        String(now.getMinutes()).padStart(2, '0');
+    // リセットボタン
+    resetBtn.addEventListener("click", () => {
+        resetScan();
+    });
 
-    localStorage.setItem("masterDataMap", JSON.stringify(masterDataMap));
-    localStorage.setItem("masterDataTime", formattedTime);
+    // 履歴表示ボタン
+    historyBtn.addEventListener("click", () => {
+        if (historyArea.style.display === "block") {
+            historyArea.style.display = "none";
+        } else {
+            updateHistoryUI();
+            historyArea.style.display = "block";
+        }
+    });
 
-    if (csvStatus) {
-        csvStatus.innerHTML = `✅ マスターデータ登録完了<br>(${formattedTime} 読込 / ${count} 件)`;
-        csvStatus.style.color = "#008800";
-    }
-}
+    // 履歴全削除ボタン
+    clearHistoryBtn.addEventListener("click", () => {
+        if (confirm("履歴を全削除しますか？")) {
+            scanHistory = [];
+            localStorage.removeItem("scanHistory");
+            updateHistoryUI();
+        }
+    });
 
+    // 履歴CSV出力ボタン
+    csvBtn.addEventListener("click", () => {
+        if (scanHistory.length === 0) {
+            alert("出力する履歴がありません。");
+            return;
+        }
+        let csvContent = "data:text/csv;charset=utf-8,時間,結果,1つ目,2つ目\n";
+        scanHistory.forEach(row => {
+            csvContent += `${row.time},${row.result},"${row.code1}","${row.code2}"\n`;
+        });
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "照合履歴.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
 
-// ==========================================
-// 5. プレースホルダー関数（各種イベント補助）
-// ==========================================
-function setupEventListeners() {
-    // CSVファイル選択時の処理
+    // CSVファイル読み込み
     if (csvInput) {
         csvInput.addEventListener("change", (e) => {
             const file = e.target.files[0];
@@ -622,7 +639,7 @@ function setupEventListeners() {
         });
     }
 
-    // マスターデータクリアボタン
+    // CSVクリアボタン
     if (clearCsvBtn) {
         clearCsvBtn.addEventListener("click", () => {
             localStorage.removeItem("masterDataMap");
@@ -637,14 +654,39 @@ function setupEventListeners() {
     }
 }
 
-function setCode(boxNum, codeVal) {
-    console.log(`コード${boxNum}セット:`, codeVal);
-    // UI反映の処理（既存のUI描画関数に合わせて調整してください）
-}
+// CSVパース処理
+function parseCSVData(csvText) {
+    masterDataMap = {};
+    const lines = csvText.split(/\r\n|\n/);
+    let count = 0;
 
-function checkMatch() {
-    console.log("照合判定実行");
-    // 照合ロジック（既存の判定関数に合わせて調整してください）
-}</script>
+    lines.forEach(line => {
+        const cols = line.split(",").map(col => col.replace(/^["']|["']$/g, "").trim());
+        if (cols.length >= 2 && cols[0]) {
+            const rawId = cols[0];
+            const name = cols[1];
+            const extras = cols.slice(2);
+            const itemObj = { name: name, extras: extras };
+
+            masterDataMap[rawId] = itemObj;
+            if (/^\d+$/.test(rawId)) {
+                masterDataMap[rawId.padStart(6, '0')] = itemObj;
+            }
+            count++;
+        }
+    });
+
+    const now = new Date();
+    const formattedTime = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+    localStorage.setItem("masterDataMap", JSON.stringify(masterDataMap));
+    localStorage.setItem("masterDataTime", formattedTime);
+
+    if (csvStatus) {
+        csvStatus.innerHTML = `✅ マスターデータ登録完了<br>(${formattedTime} 読込 / ${count} 件)`;
+        csvStatus.style.color = "#008800";
+    }
+}
+</script>
 </body>
 </html>
