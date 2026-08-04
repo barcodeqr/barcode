@@ -207,8 +207,8 @@
 
 <body>
 
-<!-- タスクキル後の起動時用オーバーレイ -->
-<div id="camera-start-overlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white;">
+<!-- タスクキル後や権限ブロック時の手動起動用オーバーレイ（初期非表示） -->
+<div id="camera-start-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; color: white;">
     <p style="font-size: 18px; margin-bottom: 20px; font-weight: bold;">スキャナーを起動します</p>
     <button id="start-camera-btn" style="padding: 15px 40px; font-size: 18px; font-weight: bold; background: #4CAF50; color: white; border: none; border-radius: 30px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
         カメラを開始する
@@ -321,7 +321,7 @@ const audioMismatch = new Audio();
 // ==========================================
 // 1. DOM読み込み完了後の初期化
 // ==========================================
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
     // DOM要素の取得
     guide = document.querySelector(".scan-area-guide");
     scanResult = document.getElementById("scan-result");
@@ -367,7 +367,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // イベントリスナーのセットアップ
     setupEventListeners();
 
-    // 【タスクキル対策】起動ボタンのタップイベントでカメラと音声を安全に初期化
+    // 手動起動ボタン（フォールバック用）のイベント設定
     const overlay = document.getElementById("camera-start-overlay");
     const startBtn = document.getElementById("start-camera-btn");
 
@@ -378,17 +378,20 @@ document.addEventListener("DOMContentLoaded", () => {
             audioMatch.play().then(() => { audioMatch.pause(); audioMatch.currentTime = 0; }).catch(() => {});
             audioMismatch.play().then(() => { audioMismatch.pause(); audioMismatch.currentTime = 0; }).catch(() => {});
 
-            // オーバーレイ画面を非表示化
-            if (overlay) {
-                overlay.style.display = "none";
-            }
-
-            // ユーザー操作の文脈でカメラを確実に起動
+            if (overlay) overlay.style.display = "none";
             await startBarcodeScanner();
         });
     }
-});
 
+    // 🚀 画面読み込み時に自動でカメラ起動を試行
+    try {
+        await startBarcodeScanner();
+    } catch (err) {
+        console.warn("自動カメラ起動に失敗したため手動起動ボタンを表示します:", err);
+        // 自動起動がブロックされた場合のみオーバーレイを表示
+        if (overlay) overlay.style.display = "flex";
+    }
+});
 
 // ==========================================
 // 2. カメラ制御処理（完全解放＆安全起動）
