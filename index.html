@@ -165,7 +165,6 @@
         
         #instruction-text { font-size: clamp(10px, 3.5vw, 16px); white-space: nowrap; text-align: center; }
 
-        /* --- iPad Safari等でのカメラフリーズを回避するカスタムポップアップ UI スタイル --- */
         #custom-modal-overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.5); z-index: 10000; justify-content: center; align-items: center;
@@ -181,33 +180,14 @@
         .modal-btn-ok { background: #007aff; color: #fff; box-shadow: none; }
         .modal-btn-cancel { background: #888; color: #fff; box-shadow: none; }
 
-        /* --- 緑に光る文字だけが飛んでいくスタイル --- */
         .flying-tile {
-            position: fixed;
-            z-index: 9999;
-            pointer-events: none;
-            
-            /* 四角い背景・枠線・影を完全に排除 */
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            
-            /* レーダーと同じ緑色の文字と発光エフェクト */
-            color: #00ff66;
-            font-size: 28px;
-            font-weight: bold;
-            white-space: nowrap;
-            text-shadow: 
-                0 0 10px rgba(0, 255, 102, 0.9),
-                0 0 20px rgba(0, 255, 102, 0.6);
-
-            box-sizing: border-box;
-            transition: all 0.65s cubic-bezier(0.25, 1, 0.5, 1);
+            position: fixed; z-index: 9999; pointer-events: none;
+            background: transparent !important; border: none !important; box-shadow: none !important;
+            color: #00ff66; font-size: 28px; font-weight: bold; white-space: nowrap;
+            text-shadow: 0 0 10px rgba(0, 255, 102, 0.9), 0 0 20px rgba(0, 255, 102, 0.6);
+            box-sizing: border-box; transition: all 0.65s cubic-bezier(0.25, 1, 0.5, 1);
         }
-
-        .flying-tile::after {
-            display: none !important;
-        }
+        .flying-tile::after { display: none !important; }
     </style>
 </head>
 
@@ -266,9 +246,8 @@
 
     <div id="history-area"></div>
 
-    <canvas id="ocr-canvas" style="display:none; margin:20px auto; border:3px solid red; max-width:100%;"></canvas>
+    <canvas id="crop-canvas" style="display:none;"></canvas>
 
-    <!-- カスタムポップアップ UI（標準 alert / confirm の代わりにカメラを止めずに表示する要素） -->
     <div id="custom-modal-overlay">
         <div id="custom-modal-box">
             <div id="custom-modal-msg"></div>
@@ -286,12 +265,11 @@
     let currentMode = "barcode";
     let videoElement = null;
     let codeReader = null;
-    let currentStream = null;
 
     let guide, scanResult, box1, box2;
     let code1IdLabel, code1NameLabel, code1ExtraLabel;
     let code2IdLabel, code2NameLabel, code2ExtraLabel;
-    let ocrCanvas, ocrReadBtn, ocrModeBtn, barcodeModeBtn;
+    let cropCanvas, ocrReadBtn, ocrModeBtn, barcodeModeBtn;
     let historyBtn, historyArea, clearHistoryBtn, resetBtn;
     let csvBtn, csvInput, csvStatus, clearCsvBtn;
 
@@ -300,6 +278,7 @@
 
     let detectionBuffer = [];
     const REQUIRED_CONSISTENT_READS = 2;
+    let scanLoopTimer = null;
 
     const audioScan = new Audio('scan.mp3');
     const audioMatch = new Audio('pingpong.mp3');
@@ -311,7 +290,6 @@
         audioObj.play().catch(e => console.error("Audio play error:", e));
     }
 
-    // 読み取った「文字」だけを緑色で光らせて飛ばすアニメーション関数
     function triggerFlyAnimation(targetBox, textVal) {
         const guideElem = document.querySelector(".scan-area-guide");
         if (!guideElem || !targetBox || !textVal) return;
@@ -343,7 +321,6 @@
         }, 650);
     }
 
-    // iOS/iPadOS Safari でカメラストリームを止めずにメッセージ通知する関数（標準 alert() の代替）
     function showAppAlert(msg) {
         return new Promise((resolve) => {
             const overlay = document.getElementById("custom-modal-overlay");
@@ -364,7 +341,6 @@
         });
     }
 
-    // iOS/iPadOS Safari でカメラストリームを止めずに確認する関数（標準 confirm() の代替）
     function showAppConfirm(msg) {
         return new Promise((resolve) => {
             const overlay = document.getElementById("custom-modal-overlay");
@@ -407,7 +383,7 @@
         code2IdLabel = document.getElementById("code2-id");
         code2NameLabel = document.getElementById("code2-name");
         code2ExtraLabel = document.getElementById("code2-extra");
-        ocrCanvas = document.getElementById("ocr-canvas");
+        cropCanvas = document.getElementById("crop-canvas");
         ocrReadBtn = document.getElementById("ocr-read-btn");
         ocrModeBtn = document.getElementById("ocr-mode-btn");
         barcodeModeBtn = document.getElementById("barcode-mode-btn");
@@ -443,24 +419,22 @@
     });
 
     function stopCamera() {
+        if (scanLoopTimer) {
+            clearTimeout(scanLoopTimer);
+            scanLoopTimer = null;
+        }
         if (codeReader) {
             try { codeReader.reset(); } catch (e) {}
         }
-        if (currentStream) {
-            currentStream.getTracks().forEach(track => track.stop());
-            currentStream = null;
-        }
-        if (videoElement) {
-            videoElement.pause();
+        if (videoElement && videoElement.srcObject) {
+            videoElement.srcObject.getTracks().forEach(track => track.stop());
             videoElement.srcObject = null;
         }
     }
 
     async function startBarcodeScanner() {
         stopCamera();
-
-        const hints = new Map();
-        codeReader = new ZXing.BrowserMultiFormatReader(hints, 50);
+        codeReader = new ZXing.BrowserMultiFormatReader();
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -468,18 +442,75 @@
                 audio: false
             });
 
-            currentStream = stream;
             videoElement.srcObject = stream;
             await videoElement.play();
 
-            codeReader.decodeFromStream(stream, videoElement, (result, err) => {
-                if (result && isScanning && currentMode === "barcode") {
-                    handleBarcodeDetected(result.getText());
-                }
-            });
+            // 緑枠内クロップスキャンループの開始
+            processFrameLoop();
         } catch (err) {
             showAppAlert("カメラの起動に失敗しました。カメラへのアクセス許可を確認してください。");
         }
+    }
+
+    // ★ 画面上の「緑の枠」の位置から映像の一部だけを切り抜く処理
+    function cropGuideImage() {
+        if (!videoElement || videoElement.readyState !== 4) return null;
+
+        const vWidth = videoElement.videoWidth;
+        const vHeight = videoElement.videoHeight;
+        const viewport = document.getElementById("interactive");
+
+        const vRect = viewport.getBoundingClientRect();
+        const gRect = guide.getBoundingClientRect();
+
+        // プレビュー表示（object-fit: cover）における実映像の領域・倍率を算出
+        const elementRatio = vRect.width / vRect.height;
+        const videoRatio = vWidth / vHeight;
+
+        let renderWidth, renderHeight, offsetX = 0, offsetY = 0;
+        if (videoRatio > elementRatio) {
+            renderHeight = vRect.height;
+            renderWidth = vRect.height * videoRatio;
+            offsetX = (renderWidth - vRect.width) / 2;
+        } else {
+            renderWidth = vRect.width;
+            renderHeight = vRect.width / videoRatio;
+            offsetY = (renderHeight - vRect.height) / 2;
+        }
+
+        const scale = vWidth / renderWidth;
+
+        // 緑枠の比率と位置から実ビデオ上のクロップ領域を算出
+        const cropX = ((gRect.left - vRect.left) + offsetX) * scale;
+        const cropY = ((gRect.top - vRect.top) + offsetY) * scale;
+        const cropWidth = gRect.width * scale;
+        const cropHeight = gRect.height * scale;
+
+        cropCanvas.width = cropWidth;
+        cropCanvas.height = cropHeight;
+
+        const ctx = cropCanvas.getContext("2d");
+        ctx.drawImage(videoElement, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+
+        return cropCanvas;
+    }
+
+    // ★ 定期的に緑枠内のクロップ画像のみを解析するループ
+    async function processFrameLoop() {
+        if (isScanning && currentMode === "barcode" && videoElement.readyState === 4) {
+            const croppedCanvas = cropGuideImage();
+            if (croppedCanvas) {
+                try {
+                    const result = await codeReader.decodeFromCanvas(croppedCanvas);
+                    if (result) {
+                        handleBarcodeDetected(result.getText());
+                    }
+                } catch (e) {
+                    // バーコードが見つからないフレームは正常動作としてスルー
+                }
+            }
+        }
+        scanLoopTimer = setTimeout(processFrameLoop, 120); // 120ms間隔でスキャン
     }
 
     function handleBarcodeDetected(codeStr) {
@@ -643,20 +674,15 @@
         });
 
         ocrReadBtn.addEventListener("click", async () => {
-            if (!videoElement || videoElement.readyState !== 4) return;
-            
-            const canvas = ocrCanvas;
-            canvas.width = videoElement.videoWidth;
-            canvas.height = videoElement.videoHeight;
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            const croppedCanvas = cropGuideImage();
+            if (!croppedCanvas) return;
 
             ocrReadBtn.disabled = true;
             ocrReadBtn.textContent = "解析中...";
 
             try {
                 const worker = await Tesseract.createWorker("jpn");
-                const ret = await worker.recognize(canvas);
+                const ret = await worker.recognize(croppedCanvas);
                 await worker.terminate();
                 
                 const text = ret.data.text.replace(/\s+/g, "");
@@ -685,7 +711,6 @@
             }
         });
 
-        // 履歴全削除（カメラストリームを止めないカスタムモーダル対応）
         clearHistoryBtn.addEventListener("click", async () => {
             const confirmed = await showAppConfirm("履歴を全削除しますか？");
             if (confirmed) {
@@ -726,7 +751,6 @@
             });
         }
 
-        // ★ マスターCSV消去（カメラストリームを止めないカスタムモーダル対応）
         if (clearCsvBtn) {
             clearCsvBtn.addEventListener("click", async () => {
                 const confirmed = await showAppConfirm("本当にマスターCSVを全消去しますか？<br>（この操作は取り消せません）");
