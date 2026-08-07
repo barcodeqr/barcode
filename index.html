@@ -46,9 +46,6 @@
 
         .scan-area-guide.ocr-mode{ top: 35%; left: 10%; width: 80%; height: 30%; }
         .scan-area-guide.ocr-mode #scan-result{ font-size: 60px; }
-        .scan-area-guide.ocr-mode #scan-result.ocr-error{
-            display: block; font-size: 28px; line-height: 1.4; color: #ff2222; font-weight: bold;
-        }
 
         #scan-result{
             position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
@@ -275,7 +272,6 @@
 
     let masterDataMap = {};
     let scanHistory = [];
-    let scanLoopTimer = null;
 
     const audioScan = new Audio('scan.mp3');
     const audioMatch = new Audio('pingpong.mp3');
@@ -416,106 +412,54 @@
     });
 
     function stopCamera() {
-        if (scanLoopTimer) {
-            clearTimeout(scanLoopTimer);
-            scanLoopTimer = null;
-        }
         if (codeReader) {
             try { codeReader.reset(); } catch (e) {}
         }
-        if (videoElement && videoElement.srcObject) {
-            videoElement.srcObject.getTracks().forEach(track => track.stop());
-            videoElement.srcObject = null;
+    }
+
+    // 読み取り検出ポイントが緑枠内にあるか検証
+    function isInsideGuide(resultPoints) {
+        if (!resultPoints || resultPoints.length === 0 || !videoElement) return true;
+
+        const vRect = videoElement.getBoundingClientRect();
+        const gRect = guide.getBoundingClientRect();
+
+        const scaleX = vRect.width / videoElement.videoWidth;
+        const scaleY = vRect.height / videoElement.videoHeight;
+
+        for (let pt of resultPoints) {
+            const screenX = vRect.left + (pt.x * scaleX);
+            const screenY = vRect.top + (pt.y * scaleY);
+
+            // 1点でも緑枠に入っていればOK
+            if (screenX >= gRect.left && screenX <= gRect.right &&
+                screenY >= gRect.top && screenY <= gRect.bottom) {
+                return true;
+            }
         }
+        return false;
     }
 
     async function startBarcodeScanner() {
         stopCamera();
         
-        // ZXingのフォーマット明示設定
-        const hints = new Map();
-        const formats = [
-            ZXing.BarcodeFormat.QR_CODE,
-            ZXing.BarcodeFormat.EAN_13,
-            ZXing.BarcodeFormat.EAN_8,
-            ZXing.BarcodeFormat.CODE_128,
-            ZXing.BarcodeFormat.CODE_39,
-            ZXing.BarcodeFormat.ITF,
-            ZXing.BarcodeFormat.DATA_MATRIX
-        ];
-        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-
-        codeReader = new ZXing.BrowserMultiFormatReader(hints);
+        codeReader = new ZXing.BrowserMultiFormatReader();
 
         try {
-            // 高解像度（Full HD）でカメラ要求
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { 
-                    facingMode: { ideal: "environment" },
-                    width: { ideal: 1920, min: 1280 },
-                    height: { ideal: 1080, min: 720 }
-                },
-                audio: false
-            });
-
-            videoElement.srcObject = stream;
-            await videoElement.play();
-
-            processFrameLoop();
-        } catch (err) {
-            console.error(err);
-            showAppAlert("カメラ起動エラー: 高画質カメラへのアクセスに失敗しました。");
-        }
-    }
-
-    // クロップ処理の精度を極限まで引き上げた関数
-    function cropGuideImage() {
-        if (!videoElement || videoElement.readyState !== 4) return null;
-
-        const vWidth = videoElement.videoWidth;
-        const vHeight = videoElement.videoHeight;
-        const viewport = document.getElementById("interactive");
-
-        const vRect = viewport.getBoundingClientRect();
-        const gRect = guide.getBoundingClientRect();
-
-        // 映像のアスペクト比に合わせた正確なオフセット計算
-        const scaleX = vWidth / vRect.width;
-        const scaleY = vHeight / vRect.height;
-
-        const cropX = Math.max(0, (gRect.left - vRect.left) * scaleX);
-        const cropY = Math.max(0, (gRect.top - vRect.top) * scaleY);
-        const cropWidth = Math.min(vWidth - cropX, gRect.width * scaleX);
-        const cropHeight = Math.min(vHeight - cropY, gRect.height * scaleY);
-
-        // 十分な高解像度（800px幅）でキャンバスに描写
-        const targetWidth = 800;
-        const targetHeight = Math.round((cropHeight / cropWidth) * targetWidth);
-
-        cropCanvas.width = targetWidth;
-        cropCanvas.height = targetHeight;
-
-        const ctx = cropCanvas.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(videoElement, cropX, cropY, cropWidth, cropHeight, 0, 0, targetWidth, targetHeight);
-
-        return cropCanvas;
-    }
-
-    async function processFrameLoop() {
-        if (isScanning && currentMode === "barcode" && videoElement && videoElement.readyState === 4) {
-            const croppedCanvas = cropGuideImage();
-            if (croppedCanvas) {
-                try {
-                    const result = await codeReader.decodeFromCanvas(croppedCanvas);
-                    if (result && result.getText()) {
+            // ZXing標準のストリーム解読を使用
+            await codeReader.decodeFromVideoDevice(undefined, 'video-element', (result, err) => {
+                if (result && isScanning && currentMode === "barcode") {
+                    const points = result.getResultPoints();
+                    // 緑枠内の判定チェック
+                    if (isInsideGuide(points)) {
                         handleBarcodeDetected(result.getText());
                     }
-                } catch (e) {
-                    // 認識失敗フレームはそのまま継続
                 }
-            }
+            });
+        } catch (err) {
+            console.error(err);
+            showAppAlert("カメラの起動に失敗しました。カメラ権限を確認してください。");
         }
-        scanLoopTimer = setTimeout(processFrameLoop, 100);
     }
 
     function handleBarcodeDetected(codeStr) {
@@ -527,7 +471,7 @@
             code1 = codeStr;
             setCode(1, codeStr);
             playAudio(audioScan);
-            setTimeout(() => { isScanning = true; }, 1000);
+            setTimeout(() => { isScanning = true; }, 1200);
         } else if (!code2) {
             isScanning = false;
             triggerFlyAnimation(box2, codeStr);
@@ -629,6 +573,33 @@
         `).join("");
     }
 
+    function cropGuideImageForOCR() {
+        if (!videoElement || videoElement.readyState !== 4) return null;
+
+        const vWidth = videoElement.videoWidth;
+        const vHeight = videoElement.videoHeight;
+        const viewport = document.getElementById("interactive");
+
+        const vRect = viewport.getBoundingClientRect();
+        const gRect = guide.getBoundingClientRect();
+
+        const scaleX = vWidth / vRect.width;
+        const scaleY = vHeight / vRect.height;
+
+        const cropX = Math.max(0, (gRect.left - vRect.left) * scaleX);
+        const cropY = Math.max(0, (gRect.top - vRect.top) * scaleY);
+        const cropWidth = Math.min(vWidth - cropX, gRect.width * scaleX);
+        const cropHeight = Math.min(vHeight - cropY, gRect.height * scaleY);
+
+        cropCanvas.width = cropWidth;
+        cropCanvas.height = cropHeight;
+
+        const ctx = cropCanvas.getContext("2d");
+        ctx.drawImage(videoElement, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+
+        return cropCanvas;
+    }
+
     function setupEventListeners() {
         const startAudioBtn = document.getElementById("start-audio-btn");
         if (startAudioBtn) {
@@ -666,7 +637,7 @@
         });
 
         ocrReadBtn.addEventListener("click", async () => {
-            const croppedCanvas = cropGuideImage();
+            const croppedCanvas = cropGuideImageForOCR();
             if (!croppedCanvas) return;
 
             ocrReadBtn.disabled = true;
