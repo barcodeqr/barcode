@@ -263,6 +263,11 @@
     let videoElement = null;
     let codeReader = null;
 
+    // 誤読防止（3回連続一致）用の変数
+    let lastCandidateCode = null;
+    let matchCount = 0;
+    const REQUIRED_MATCH_COUNT = 3; // 3回一致で確定
+
     let guide, scanResult, box1, box2;
     let code1IdLabel, code1NameLabel, code1ExtraLabel;
     let code2IdLabel, code2NameLabel, code2ExtraLabel;
@@ -417,42 +422,37 @@
         }
     }
 
-// 読み取り検出ポイントが緑枠内にあるか検証（object-fit: coverのズレを正しく補正）
-function isInsideGuide(resultPoints) {
-    if (!resultPoints || resultPoints.length === 0 || !videoElement) return true;
+    // 読み取り検出ポイントが緑枠内にあるか検証（object-fit: coverの補正適用）
+    function isInsideGuide(resultPoints) {
+        if (!resultPoints || resultPoints.length === 0 || !videoElement) return true;
 
-    const vRect = videoElement.getBoundingClientRect(); // 表示上のvideo要素のサイズ
-    const gRect = guide.getBoundingClientRect();        // 表示上の緑枠のサイズ
+        const vRect = videoElement.getBoundingClientRect(); 
+        const gRect = guide.getBoundingClientRect();        
 
-    const videoWidth = videoElement.videoWidth;   // カメラ画像の実際の幅
-    const videoHeight = videoElement.videoHeight; // カメラ画像の実際の高さ
+        const videoWidth = videoElement.videoWidth;   
+        const videoHeight = videoElement.videoHeight; 
 
-    if (!videoWidth || !videoHeight) return true;
+        if (!videoWidth || !videoHeight) return true;
 
-    // object-fit: cover による拡大・はみ出し倍率の計算
-    const scale = Math.max(vRect.width / videoWidth, vRect.height / videoHeight);
-    
-    // 表示上での実際の映像描画領域のサイズ
-    const renderedWidth = videoWidth * scale;
-    const renderedHeight = videoHeight * scale;
+        const scale = Math.max(vRect.width / videoWidth, vRect.height / videoHeight);
+        
+        const renderedWidth = videoWidth * scale;
+        const renderedHeight = videoHeight * scale;
 
-    // 画面中央合わせによるはみ出しオフセット（はみ出ている領域の幅・高さ）
-    const offsetX = (renderedWidth - vRect.width) / 2;
-    const offsetY = (renderedHeight - vRect.height) / 2;
+        const offsetX = (renderedWidth - vRect.width) / 2;
+        const offsetY = (renderedHeight - vRect.height) / 2;
 
-    for (let pt of resultPoints) {
-        // カメラ画像上の座標(pt.x, pt.y)を、画面上のピクセル位置(screenX, screenY)へ変換
-        const screenX = vRect.left + (pt.x * scale) - offsetX;
-        const screenY = vRect.top + (pt.y * scale) - offsetY;
+        for (let pt of resultPoints) {
+            const screenX = vRect.left + (pt.x * scale) - offsetX;
+            const screenY = vRect.top + (pt.y * scale) - offsetY;
 
-        // 緑枠の中に入っているか判定
-        if (screenX >= gRect.left && screenX <= gRect.right &&
-            screenY >= gRect.top && screenY <= gRect.bottom) {
-            return true;
+            if (screenX >= gRect.left && screenX <= gRect.right &&
+                screenY >= gRect.top && screenY <= gRect.bottom) {
+                return true;
+            }
         }
+        return false;
     }
-    return false;
-}
 
     async function startBarcodeScanner() {
         stopCamera();
@@ -460,11 +460,9 @@ function isInsideGuide(resultPoints) {
         codeReader = new ZXing.BrowserMultiFormatReader();
 
         try {
-            // ZXing標準のストリーム解読を使用
             await codeReader.decodeFromVideoDevice(undefined, 'video-element', (result, err) => {
                 if (result && isScanning && currentMode === "barcode") {
                     const points = result.getResultPoints();
-                    // 緑枠内の判定チェック
                     if (isInsideGuide(points)) {
                         handleBarcodeDetected(result.getText());
                     }
@@ -476,9 +474,34 @@ function isInsideGuide(resultPoints) {
         }
     }
 
+    // 3回連続一致判定付きの検出処理
     function handleBarcodeDetected(codeStr) {
         if (!isScanning || !codeStr) return;
 
+        // OCRモードの場合は3回判定を行わず一発で通過させる
+        if (currentMode === "ocr") {
+            processFinalCode(codeStr);
+            return;
+        }
+
+        // 直前の候補コードと同じかどうかチェック
+        if (codeStr === lastCandidateCode) {
+            matchCount++;
+        } else {
+            lastCandidateCode = codeStr;
+            matchCount = 1;
+        }
+
+        // 3回連続一致した場合のみ確定処理を実行
+        if (matchCount >= REQUIRED_MATCH_COUNT) {
+            matchCount = 0;
+            lastCandidateCode = null;
+            processFinalCode(codeStr);
+        }
+    }
+
+    // 確定時の処理
+    function processFinalCode(codeStr) {
         if (!code1) {
             isScanning = false;
             triggerFlyAnimation(box1, codeStr);
@@ -554,6 +577,8 @@ function isInsideGuide(resultPoints) {
         code1 = null;
         code2 = null;
         isScanning = true;
+        lastCandidateCode = null;
+        matchCount = 0;
 
         code1IdLabel.textContent = "-";
         code1NameLabel.textContent = "";
