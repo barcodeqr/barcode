@@ -417,28 +417,42 @@
         }
     }
 
-    // 読み取り検出ポイントが緑枠内にあるか検証
-    function isInsideGuide(resultPoints) {
-        if (!resultPoints || resultPoints.length === 0 || !videoElement) return true;
+// 読み取り検出ポイントが緑枠内にあるか検証（object-fit: coverのズレを正しく補正）
+function isInsideGuide(resultPoints) {
+    if (!resultPoints || resultPoints.length === 0 || !videoElement) return true;
 
-        const vRect = videoElement.getBoundingClientRect();
-        const gRect = guide.getBoundingClientRect();
+    const vRect = videoElement.getBoundingClientRect(); // 表示上のvideo要素のサイズ
+    const gRect = guide.getBoundingClientRect();        // 表示上の緑枠のサイズ
 
-        const scaleX = vRect.width / videoElement.videoWidth;
-        const scaleY = vRect.height / videoElement.videoHeight;
+    const videoWidth = videoElement.videoWidth;   // カメラ画像の実際の幅
+    const videoHeight = videoElement.videoHeight; // カメラ画像の実際の高さ
 
-        for (let pt of resultPoints) {
-            const screenX = vRect.left + (pt.x * scaleX);
-            const screenY = vRect.top + (pt.y * scaleY);
+    if (!videoWidth || !videoHeight) return true;
 
-            // 1点でも緑枠に入っていればOK
-            if (screenX >= gRect.left && screenX <= gRect.right &&
-                screenY >= gRect.top && screenY <= gRect.bottom) {
-                return true;
-            }
+    // object-fit: cover による拡大・はみ出し倍率の計算
+    const scale = Math.max(vRect.width / videoWidth, vRect.height / videoHeight);
+    
+    // 表示上での実際の映像描画領域のサイズ
+    const renderedWidth = videoWidth * scale;
+    const renderedHeight = videoHeight * scale;
+
+    // 画面中央合わせによるはみ出しオフセット（はみ出ている領域の幅・高さ）
+    const offsetX = (renderedWidth - vRect.width) / 2;
+    const offsetY = (renderedHeight - vRect.height) / 2;
+
+    for (let pt of resultPoints) {
+        // カメラ画像上の座標(pt.x, pt.y)を、画面上のピクセル位置(screenX, screenY)へ変換
+        const screenX = vRect.left + (pt.x * scale) - offsetX;
+        const screenY = vRect.top + (pt.y * scale) - offsetY;
+
+        // 緑枠の中に入っているか判定
+        if (screenX >= gRect.left && screenX <= gRect.right &&
+            screenY >= gRect.top && screenY <= gRect.bottom) {
+            return true;
         }
-        return false;
     }
+    return false;
+}
 
     async function startBarcodeScanner() {
         stopCamera();
