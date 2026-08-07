@@ -38,13 +38,13 @@
         #interactive.viewport video { width: 100%; height: 100%; object-fit: cover; }
 
         .scan-area-guide {
-            position: absolute; top: 25%; left: 10%; width: 80%; height: 50%;
+            position: absolute; top: 20%; left: 10%; width: 80%; height: 60%;
             border: 3px solid #00ff66; box-sizing: border-box; box-shadow: 0 0 15px rgba(0,255,102,0.8), inset 0 0 15px rgba(0,255,102,0.3);
             z-index: 10; overflow: hidden; display: flex; justify-content: center; align-items: center;
             pointer-events: none;
         }
 
-        .scan-area-guide.ocr-mode{ top: 38%; left: 15%; width: 70%; height: 22%; }
+        .scan-area-guide.ocr-mode{ top: 35%; left: 10%; width: 80%; height: 30%; }
         .scan-area-guide.ocr-mode #scan-result{ font-size: 60px; }
         .scan-area-guide.ocr-mode #scan-result.ocr-error{
             display: block; font-size: 28px; line-height: 1.4; color: #ff2222; font-weight: bold;
@@ -277,7 +277,7 @@
     let scanHistory = [];
 
     let detectionBuffer = [];
-    const REQUIRED_CONSISTENT_READS = 2;
+    const REQUIRED_CONSISTENT_READS = 1; // 読み取り感度向上のため一時的に1に変更
     let scanLoopTimer = null;
 
     const audioScan = new Audio('scan.mp3');
@@ -438,21 +438,24 @@
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: "environment" } },
+                video: { 
+                    facingMode: { ideal: "environment" },
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                },
                 audio: false
             });
 
             videoElement.srcObject = stream;
             await videoElement.play();
 
-            // 緑枠内クロップスキャンループの開始
             processFrameLoop();
         } catch (err) {
             showAppAlert("カメラの起動に失敗しました。カメラへのアクセス許可を確認してください。");
         }
     }
 
-    // ★ 画面上の「緑の枠」の位置から映像の一部だけを切り抜く処理
+    // クロップ処理の精度強化版
     function cropGuideImage() {
         if (!videoElement || videoElement.readyState !== 4) return null;
 
@@ -463,39 +466,28 @@
         const vRect = viewport.getBoundingClientRect();
         const gRect = guide.getBoundingClientRect();
 
-        // プレビュー表示（object-fit: cover）における実映像の領域・倍率を算出
-        const elementRatio = vRect.width / vRect.height;
-        const videoRatio = vWidth / vHeight;
+        // 基準倍率算出
+        const scaleX = vWidth / vRect.width;
+        const scaleY = vHeight / vRect.height;
 
-        let renderWidth, renderHeight, offsetX = 0, offsetY = 0;
-        if (videoRatio > elementRatio) {
-            renderHeight = vRect.height;
-            renderWidth = vRect.height * videoRatio;
-            offsetX = (renderWidth - vRect.width) / 2;
-        } else {
-            renderWidth = vRect.width;
-            renderHeight = vRect.width / videoRatio;
-            offsetY = (renderHeight - vRect.height) / 2;
-        }
+        const cropX = (gRect.left - vRect.left) * scaleX;
+        const cropY = (gRect.top - vRect.top) * scaleY;
+        const cropWidth = gRect.width * scaleX;
+        const cropHeight = gRect.height * scaleY;
 
-        const scale = vWidth / renderWidth;
+        // 解読しやすい標準サイズにスケーリング
+        const targetWidth = 400;
+        const targetHeight = (cropHeight / cropWidth) * targetWidth;
 
-        // 緑枠の比率と位置から実ビデオ上のクロップ領域を算出
-        const cropX = ((gRect.left - vRect.left) + offsetX) * scale;
-        const cropY = ((gRect.top - vRect.top) + offsetY) * scale;
-        const cropWidth = gRect.width * scale;
-        const cropHeight = gRect.height * scale;
-
-        cropCanvas.width = cropWidth;
-        cropCanvas.height = cropHeight;
+        cropCanvas.width = targetWidth;
+        cropCanvas.height = targetHeight;
 
         const ctx = cropCanvas.getContext("2d");
-        ctx.drawImage(videoElement, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+        ctx.drawImage(videoElement, cropX, cropY, cropWidth, cropHeight, 0, 0, targetWidth, targetHeight);
 
         return cropCanvas;
     }
 
-    // ★ 定期的に緑枠内のクロップ画像のみを解析するループ
     async function processFrameLoop() {
         if (isScanning && currentMode === "barcode" && videoElement.readyState === 4) {
             const croppedCanvas = cropGuideImage();
@@ -506,11 +498,11 @@
                         handleBarcodeDetected(result.getText());
                     }
                 } catch (e) {
-                    // バーコードが見つからないフレームは正常動作としてスルー
+                    // 解読不可フレームはスキップ
                 }
             }
         }
-        scanLoopTimer = setTimeout(processFrameLoop, 120); // 120ms間隔でスキャン
+        scanLoopTimer = setTimeout(processFrameLoop, 150);
     }
 
     function handleBarcodeDetected(codeStr) {
@@ -518,12 +510,6 @@
 
         detectionBuffer.push(codeStr);
         if (detectionBuffer.length < REQUIRED_CONSISTENT_READS) return;
-
-        const allMatch = detectionBuffer.every(val => val === codeStr);
-        if (!allMatch) {
-            detectionBuffer.shift();
-            return;
-        }
 
         const confirmedCode = detectionBuffer[0];
         detectionBuffer = [];
