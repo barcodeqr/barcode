@@ -275,9 +275,6 @@
 
     let masterDataMap = {};
     let scanHistory = [];
-
-    let detectionBuffer = [];
-    const REQUIRED_CONSISTENT_READS = 1; // 読み取り感度向上のため一時的に1に変更
     let scanLoopTimer = null;
 
     const audioScan = new Audio('scan.mp3');
@@ -434,14 +431,29 @@
 
     async function startBarcodeScanner() {
         stopCamera();
-        codeReader = new ZXing.BrowserMultiFormatReader();
+        
+        // ZXingのフォーマット明示設定
+        const hints = new Map();
+        const formats = [
+            ZXing.BarcodeFormat.QR_CODE,
+            ZXing.BarcodeFormat.EAN_13,
+            ZXing.BarcodeFormat.EAN_8,
+            ZXing.BarcodeFormat.CODE_128,
+            ZXing.BarcodeFormat.CODE_39,
+            ZXing.BarcodeFormat.ITF,
+            ZXing.BarcodeFormat.DATA_MATRIX
+        ];
+        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+
+        codeReader = new ZXing.BrowserMultiFormatReader(hints);
 
         try {
+            // 高解像度（Full HD）でカメラ要求
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { 
                     facingMode: { ideal: "environment" },
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
+                    width: { ideal: 1920, min: 1280 },
+                    height: { ideal: 1080, min: 720 }
                 },
                 audio: false
             });
@@ -451,11 +463,12 @@
 
             processFrameLoop();
         } catch (err) {
-            showAppAlert("カメラの起動に失敗しました。カメラへのアクセス許可を確認してください。");
+            console.error(err);
+            showAppAlert("カメラ起動エラー: 高画質カメラへのアクセスに失敗しました。");
         }
     }
 
-    // クロップ処理の精度強化版
+    // クロップ処理の精度を極限まで引き上げた関数
     function cropGuideImage() {
         if (!videoElement || videoElement.readyState !== 4) return null;
 
@@ -466,68 +479,62 @@
         const vRect = viewport.getBoundingClientRect();
         const gRect = guide.getBoundingClientRect();
 
-        // 基準倍率算出
+        // 映像のアスペクト比に合わせた正確なオフセット計算
         const scaleX = vWidth / vRect.width;
         const scaleY = vHeight / vRect.height;
 
-        const cropX = (gRect.left - vRect.left) * scaleX;
-        const cropY = (gRect.top - vRect.top) * scaleY;
-        const cropWidth = gRect.width * scaleX;
-        const cropHeight = gRect.height * scaleY;
+        const cropX = Math.max(0, (gRect.left - vRect.left) * scaleX);
+        const cropY = Math.max(0, (gRect.top - vRect.top) * scaleY);
+        const cropWidth = Math.min(vWidth - cropX, gRect.width * scaleX);
+        const cropHeight = Math.min(vHeight - cropY, gRect.height * scaleY);
 
-        // 解読しやすい標準サイズにスケーリング
-        const targetWidth = 400;
-        const targetHeight = (cropHeight / cropWidth) * targetWidth;
+        // 十分な高解像度（800px幅）でキャンバスに描写
+        const targetWidth = 800;
+        const targetHeight = Math.round((cropHeight / cropWidth) * targetWidth);
 
         cropCanvas.width = targetWidth;
         cropCanvas.height = targetHeight;
 
-        const ctx = cropCanvas.getContext("2d");
+        const ctx = cropCanvas.getContext("2d", { willReadFrequently: true });
         ctx.drawImage(videoElement, cropX, cropY, cropWidth, cropHeight, 0, 0, targetWidth, targetHeight);
 
         return cropCanvas;
     }
 
     async function processFrameLoop() {
-        if (isScanning && currentMode === "barcode" && videoElement.readyState === 4) {
+        if (isScanning && currentMode === "barcode" && videoElement && videoElement.readyState === 4) {
             const croppedCanvas = cropGuideImage();
             if (croppedCanvas) {
                 try {
                     const result = await codeReader.decodeFromCanvas(croppedCanvas);
-                    if (result) {
+                    if (result && result.getText()) {
                         handleBarcodeDetected(result.getText());
                     }
                 } catch (e) {
-                    // 解読不可フレームはスキップ
+                    // 認識失敗フレームはそのまま継続
                 }
             }
         }
-        scanLoopTimer = setTimeout(processFrameLoop, 150);
+        scanLoopTimer = setTimeout(processFrameLoop, 100);
     }
 
     function handleBarcodeDetected(codeStr) {
         if (!isScanning || !codeStr) return;
 
-        detectionBuffer.push(codeStr);
-        if (detectionBuffer.length < REQUIRED_CONSISTENT_READS) return;
-
-        const confirmedCode = detectionBuffer[0];
-        detectionBuffer = [];
-
         if (!code1) {
             isScanning = false;
-            triggerFlyAnimation(box1, confirmedCode);
-            code1 = confirmedCode;
-            setCode(1, confirmedCode);
+            triggerFlyAnimation(box1, codeStr);
+            code1 = codeStr;
+            setCode(1, codeStr);
             playAudio(audioScan);
-            setTimeout(() => { isScanning = true; }, 1200);
+            setTimeout(() => { isScanning = true; }, 1000);
         } else if (!code2) {
             isScanning = false;
-            triggerFlyAnimation(box2, confirmedCode);
-            code2 = confirmedCode;
-            setCode(2, confirmedCode);
+            triggerFlyAnimation(box2, codeStr);
+            code2 = codeStr;
+            setCode(2, codeStr);
             playAudio(audioScan);
-            setTimeout(() => { checkMatch(); }, 500);
+            setTimeout(() => { checkMatch(); }, 300);
         }
     }
 
@@ -588,7 +595,6 @@
     function resetScan() {
         code1 = null;
         code2 = null;
-        detectionBuffer = [];
         isScanning = true;
 
         code1IdLabel.textContent = "-";
