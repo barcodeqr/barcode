@@ -157,12 +157,6 @@
 
 <body>
 
-    <!-- 完全埋め込み用オーディオ要素（外部ファイル・Web Audio API不要） -->
-    <audio id="snd-scan1" preload="auto" src="data:audio/mp3;base64,SUQ3BAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//7kAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABIZWFkAAAAAAAAAB0AAAABAAAAAAAAAAAAAAAAMTIzNDU2Nzg5QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5eg=="></audio>
-    <audio id="snd-scan2" preload="auto" src="data:audio/mp3;base64,SUQ3BAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//7kAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABIZWFkAAAAAAAAAB0AAAABAAAAAAAAAAAAAAAAMTIzNDU2Nzg5QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5eg=="></audio>
-    <audio id="snd-match" preload="auto" src="data:audio/mp3;base64,SUQ3BAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//7kAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABIZWFkAAAAAAAAAB0AAAABAAAAAAAAAAAAAAAAMTIzNDU2Nzg5QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5eg=="></audio>
-    <audio id="snd-mismatch" preload="auto" src="data:audio/mp3;base64,SUQ3BAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//7kAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABIZWFkAAAAAAAAAB0AAAABAAAAAAAAAAAAAAAAMTIzNDU2Nzg5QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5eg=="></audio>
-
     <div class="tab-bar">
         <button id="tab-barcode" class="tab-item active">コード照合</button>
         <button id="tab-ocr" class="tab-item">文字照合</button>
@@ -257,34 +251,76 @@
     let masterDataMap = {};
     let scanHistory = [];
 
-    // --- 各種サウンド再生制御 ---
+    // --- Web Audio API による完全内部音源発生制御 ---
+    let audioCtx = null;
+
     function initAudio() {
-        const audioIds = ['snd-scan1', 'snd-scan2', 'snd-match', 'snd-mismatch'];
-        audioIds.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.muted = true;
-                el.play().then(() => {
-                    el.pause();
-                    el.currentTime = 0;
-                    el.muted = false;
-                }).catch(e => console.log(e));
-            }
-        });
+        if (!audioCtx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
     }
 
     function playSound(type) {
-        let soundId = '';
-        if (type === 'scan1') soundId = 'snd-scan1';
-        else if (type === 'scan2') soundId = 'snd-scan2';
-        else if (type === 'match') soundId = 'snd-match';
-        else if (type === 'mismatch') soundId = 'snd-mismatch';
+        initAudio();
+        if (!audioCtx) return;
 
-        const audio = document.getElementById(soundId);
-        if (audio) {
-            audio.pause();
-            audio.currentTime = 0;
-            audio.play().catch(e => console.log("再生エラー:", e));
+        const now = audioCtx.currentTime;
+
+        if (type === 'scan1' || type === 'scan2') {
+            // ピッ音 (高音・電子音)
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(2000, now);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.08);
+
+        } else if (type === 'match') {
+            // ピンポーン音 (チャイム音)
+            const osc1 = audioCtx.createOscillator();
+            const gain1 = audioCtx.createGain();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(1046.50, now); // ド (C6)
+            gain1.gain.setValueAtTime(0.3, now);
+            gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+            osc1.connect(gain1);
+            gain1.connect(audioCtx.destination);
+            osc1.start(now);
+            osc1.stop(now + 0.35);
+
+            const osc2 = audioCtx.createOscillator();
+            const gain2 = audioCtx.createGain();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(1318.51, now + 0.12); // ミ (E6)
+            gain2.gain.setValueAtTime(0.3, now + 0.12);
+            gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+            osc2.connect(gain2);
+            gain2.connect(audioCtx.destination);
+            osc2.start(now + 0.12);
+            osc2.stop(now + 0.6);
+
+        } else if (type === 'mismatch') {
+            // ブブー音 (エラー音)
+            [150, 200].forEach(freq => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(freq, now);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.4);
+            });
         }
     }
 
