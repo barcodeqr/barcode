@@ -200,7 +200,7 @@
             </div>
         </div>
 
-        <button id="reset-btn" class="action-btn">対象クリア</button>
+        <button id="reset-btn" class="action-btn">リストクリア</button>
 
         <!-- 下部常時表示の履歴エリア -->
         <div class="history-card">
@@ -264,22 +264,21 @@
     const audioMatch = new Audio('pingpong.mp3');
     const audioMismatch = new Audio('boo.mp3');
 
-    // 改善版：音声を安全・確実に出力する関数
+    // 安定性を向上させた音声再生関数
     function playAudio(audioObj) {
         if (!audioObj) return;
-    
-        // 一度再生を止めて頭出し（エラー回避のためPromiseを待つ）
-        audioObj.pause();
-        audioObj.currentTime = 0;
-
-        // 再生処理を実行（ブラウザに拒否された場合の処理を追加）
-        let playPromise = audioObj.play();
-        if (playPromise !== undefined) {
-            playPromise.catch(e => {
-                console.warn("音声再生がブロックされました:", e);
-            });
+        try {
+            audioObj.pause();
+            audioObj.currentTime = 0;
+            let playPromise = audioObj.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(e => console.warn("音声再生が制限されました:", e));
+            }
+        } catch(e) {
+            console.error("Audio error:", e);
         }
     }
+
     function triggerFlyAnimation(targetBox, textVal) {
         const guideElem = document.querySelector(".scan-area-guide");
         if (!guideElem || !targetBox || !textVal) return;
@@ -484,15 +483,16 @@
             triggerFlyAnimation(box1, codeStr);
             code1 = codeStr;
             setCode(1, codeStr);
-            playAudio(audioScan);
+            playAudio(audioScan); // 1つ目は読み取り音を鳴らす
             setTimeout(() => { isScanning = true; }, 1200);
         } else if (!code2) {
             isScanning = false;
             triggerFlyAnimation(box2, codeStr);
             code2 = codeStr;
             setCode(2, codeStr);
-            playAudio(audioScan);
-            setTimeout(() => { checkMatch(); }, 300);
+            
+            // 2つ目セット時は読み取り音をスキップして即判定へ（音の重なりを完全回避）
+            setTimeout(() => { checkMatch(); }, 200);
         }
     }
 
@@ -528,14 +528,14 @@
             scanResult.className = "ok";
             box1.classList.add("match");
             box2.classList.add("match");
-            playAudio(audioMatch);
+            playAudio(audioMatch); // 衝突なく確実にOK音が鳴る
         } else {
             scanResult.textContent = "NG";
             scanResult.className = "ng";
             guide.classList.add("ng");
             box1.classList.add("mismatch");
             box2.classList.add("mismatch");
-            playAudio(audioMismatch);
+            playAudio(audioMismatch); // 衝突なく確実にNG音が鳴る
         }
 
         const now = new Date();
@@ -638,7 +638,7 @@
             currentMode = "ocr";
             guide.classList.add("ocr-mode");
             ocrReadBtn.style.display = "block";
-            document.getElementById("instruction-text").textContent = "枠内に文字を合わせて「文字を読み取る」を押して下さい";
+            document.getElementById("instruction-text").textContent = "枠内に文字を合わせて「文字を読み取る」を押してください";
             resetScan();
         });
 
@@ -686,6 +686,7 @@
         const startAudioBtn = document.getElementById("start-audio-btn");
         if (startAudioBtn) {
             startAudioBtn.addEventListener("click", function () {
+                // 初回タップ時に全ての音声を一度ミュートでアンロック
                 [audioScan, audioMatch, audioMismatch].forEach(audio => {
                     audio.play().then(() => {
                         audio.pause();
