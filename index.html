@@ -99,13 +99,14 @@
         .code-display.match { background: #d4edda; border-color: #28a745; }
         .code-display.mismatch { background: #f8d7da; border-color: #dc3545; }
 
+        /* リストクリアボタン（青系） */
         button.action-btn {
             width: 100%; padding: 12px; font-size: 18px; font-weight: bold; margin: 6px 0; cursor: pointer;
             color: #ffffff; border: none; border-radius: 12px;
-            background: linear-gradient(to bottom, #f57c00, #e65100);
-            box-shadow: 0 4px 0 #b33900; transition: .15s;
+            background: linear-gradient(to bottom, #007aff, #0056b3);
+            box-shadow: 0 4px 0 #003d80; transition: .15s;
         }
-        button.action-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #b33900; }
+        button.action-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #003d80; }
 
         #ocr-read-btn {
             display: none; width: 100%; padding: 12px; margin: 8px 0; font-size: 18px; font-weight: bold;
@@ -199,7 +200,7 @@
             </div>
         </div>
 
-        <button id="reset-btn" class="action-btn">リセット</button>
+        <button id="reset-btn" class="action-btn">リストクリア</button>
 
         <!-- 下部常時表示の履歴エリア -->
         <div class="history-card">
