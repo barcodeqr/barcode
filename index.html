@@ -251,28 +251,33 @@
     let masterDataMap = {};
     let scanHistory = [];
 
-    // 音声を確実に連続再生するための動的生成関数
-    function playAudioFile(filename, delay = 0) {
+    // 音声オブジェクトの固定保持（自動再生ブロック対策）
+    const audioMap = {
+        scan: new Audio('scan.mp3'),
+        pingpong: new Audio('pingpong.mp3'),
+        boo: new Audio('boo.mp3')
+    };
+
+    // 再利用可能な再生関数
+    function playAudio(key, delay = 0) {
         setTimeout(() => {
-            try {
-                const snd = new Audio(filename);
-                const playPromise = snd.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch(e => console.warn("Audio play blocked:", e));
-                }
-            } catch (e) {
-                console.error("Audio error:", e);
+            const audio = audioMap[key];
+            if (audio) {
+                audio.currentTime = 0; // 先頭に戻す
+                audio.play().catch(e => console.warn("Audio play blocked:", e));
             }
         }, delay);
     }
 
-    // スマホの自動再生規制の解除用
+    // ユーザーのアクションで全音声を解放・準備する関数
     function unlockAudioContext() {
-        ['scan.mp3', 'pingpong.mp3', 'boo.mp3'].forEach(file => {
-            const a = new Audio(file);
+        Object.keys(audioMap).forEach(key => {
+            const a = audioMap[key];
             a.volume = 0.01; // ほぼ無音
             a.play().then(() => {
                 a.pause();
+                a.currentTime = 0;
+                a.volume = 1.0; // 音量を戻す
             }).catch(() => {});
         });
     }
@@ -483,7 +488,7 @@
             setCode(1, codeStr);
             
             // 1回目の読み取り音
-            playAudioFile('scan.mp3');
+            playAudio('scan');
             
             setTimeout(() => { isScanning = true; }, 1200);
         } else if (!code2) {
@@ -492,8 +497,8 @@
             code2 = codeStr;
             setCode(2, codeStr);
             
-            // 2回目の読み取り音を即座に鳴らし、少し遅らせて判定音（OK/NG）を鳴らす
-            playAudioFile('scan.mp3', 0);
+            // 2回目の読み取り音と、少し遅らせての判定音
+            playAudio('scan', 0);
             checkMatch();
         }
     }
@@ -530,16 +535,14 @@
             scanResult.className = "ok";
             box1.classList.add("match");
             box2.classList.add("match");
-            // 読み取り音（scan.mp3）が終わるタイミング（約300ms後）でOK音を鳴らす
-            playAudioFile('pingpong.mp3', 350);
+            playAudio('pingpong', 350);
         } else {
             scanResult.textContent = "NG";
             scanResult.className = "ng";
             guide.classList.add("ng");
             box1.classList.add("mismatch");
             box2.classList.add("mismatch");
-            // 読み取り音（scan.mp3）が終わるタイミング（約300ms後）でNG音を鳴らす
-            playAudioFile('boo.mp3', 350);
+            playAudio('boo', 350);
         }
 
         const now = new Date();
