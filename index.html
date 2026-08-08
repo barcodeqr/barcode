@@ -6,33 +6,48 @@
     <link rel="apple-touch-icon" sizes="180x180" href="./icon.png">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#00aa44">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>コード・ＱＲ照合システム</title>
     
     <script src="https://unpkg.com/@zxing/library@latest"></script>
     <script src="https://unpkg.com/tesseract.js@5/dist/tesseract.min.js"></script>
     
     <style>
-        body { font-family: sans-serif; text-align: center; margin: 20px; background: #f0f0f0; }
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; text-align: center; margin: 0; padding: 0; background: #f4f6f9; color: #333; }
         
+        /* 上部固定タブナビゲーション */
+        .tab-bar {
+            display: flex; background: #ffffff; border-bottom: 2px solid #e0e0e0;
+            position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow-x: auto; white-space: nowrap;
+        }
+        .tab-item {
+            flex: 1; min-width: 75px; padding: 12px 5px; font-size: 13px; font-weight: bold; color: #666;
+            background: none; border: none; border-bottom: 3px solid transparent; border-radius: 0;
+            cursor: pointer; margin: 0; box-shadow: none !important; transition: all 0.2s;
+        }
+        .tab-item:hover { transform: none; background: #f8f9fa; }
+        .tab-item:active { transform: none; }
+        .tab-item.active { color: #00aa44; border-bottom-color: #00aa44; background: #f0fff4; }
+
+        .container { padding: 12px; max-width: 500px; margin: 0 auto; }
+
         #start-audio-btn {
             background: #ffcc00; color: #333; font-weight: bold; border: 2px solid #ff9900;
-            padding: 15px 30px; font-size: 18px; margin-bottom: 15px; animation: pulse 1.5s infinite;
-            border-radius: 12px; cursor: pointer;
+            padding: 12px 20px; font-size: 16px; margin: 10px 0; animation: pulse 1.5s infinite;
+            border-radius: 12px; cursor: pointer; width: 100%;
         }
         @keyframes pulse {
-            0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); }
+            0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); }
         }
 
-        .csv-upload-box {
-            background: #fff; border: 2px dashed #007aff; border-radius: 12px;
-            padding: 15px; margin: 15px auto; max-width: 500px; box-sizing: border-box;
-        }
-        .csv-status { font-weight: bold; margin-top: 8px; color: #007aff; font-size: 14px; line-height: 1.4; }
+        #instruction-text { font-size: 14px; color: #555; margin: 8px 0; font-weight: bold; }
 
         #interactive.viewport {
-            width: 100%; max-width: 500px; aspect-ratio: 16 / 9; height: auto;
-            margin: 0 auto; background: #000; position: relative; overflow: hidden;
+            width: 100%; aspect-ratio: 16 / 9; height: auto;
+            margin: 0 auto; background: #000; position: relative; overflow: hidden; border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }        
 
         #interactive.viewport video { width: 100%; height: 100%; object-fit: cover; }
@@ -41,16 +56,15 @@
             position: absolute; top: 20%; left: 10%; width: 80%; height: 60%;
             border: 3px solid #00ff66; box-sizing: border-box; box-shadow: 0 0 15px rgba(0,255,102,0.8), inset 0 0 15px rgba(0,255,102,0.3);
             z-index: 10; overflow: hidden; display: flex; justify-content: center; align-items: center;
-            pointer-events: none;
+            pointer-events: none; border-radius: 8px;
         }
 
-        .scan-area-guide.ocr-mode{ top: 35%; left: 10%; width: 80%; height: 30%; }
-        .scan-area-guide.ocr-mode #scan-result{ font-size: 60px; }
+        .scan-area-guide.ocr-mode{ top: 30%; left: 10%; width: 80%; height: 40%; }
 
         #scan-result{
             position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-            width: 100%; text-align: center; font-size: 120px; font-weight: bold; color: #fff;
-            text-shadow: 0 0 10px #000, 0 0 20px #000, 0 0 40px #000; display: none; z-index: 100; pointer-events: none;
+            width: 100%; text-align: center; font-size: 90px; font-weight: bold; color: #fff;
+            text-shadow: 0 0 10px #000, 0 0 20px #000; display: none; z-index: 100; pointer-events: none;
         }
 
         #scan-result.ok{ display: block; color: #00ff66; }
@@ -62,198 +76,163 @@
         }
 
         @keyframes scanLine {
-            0% { top: -30px; background: linear-gradient(to bottom, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%); box-shadow: 0 3px 10px rgba(0,255,102,0.4); }
-            49.9% { background: linear-gradient(to bottom, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%); }
-            50% { top: 100%; background: linear-gradient(to top, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%); box-shadow: 0 -3px 10px rgba(0,255,102,0.4); }
-            100% { top: -30px; background: linear-gradient(to top, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%); box-shadow: 0 -3px 10px rgba(0,255,102,0.4); }
+            0% { top: -30px; background: linear-gradient(to bottom, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%); }
+            100% { top: 100%; background: linear-gradient(to top, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%); }
         }
 
         .scan-area-guide.ng { border-color: #ff0000; box-shadow: 0 0 15px rgba(255,0,0,0.8); }
-        .scan-area-guide.ng::after { animation-name: scanLineRed; }
 
-        @keyframes scanLineRed {
-            0% { top: -30px; background: linear-gradient(to bottom, rgba(255,0,0,0) 0%, rgba(255,0,0,0.9) 100%); box-shadow: 0 3px 10px rgba(255,0,0,0.5); }
-            49.9% { background: linear-gradient(to bottom, rgba(255,0,0,0) 0%, rgba(255,0,0,0.9) 100%); }
-            50% { top: 100%; background: linear-gradient(to top, rgba(255,0,0,0) 0%, rgba(255,0,0,0.9) 100%); box-shadow: 0 -3px 10px rgba(255,0,0,0.5); }
-            100% { top: -30px; background: linear-gradient(to top, rgba(255,0,0,0) 0%, rgba(255,0,0,0.9) 100%); box-shadow: 0 -3px 10px rgba(255,0,0,0.5); }
-        }
-
-        .result-box { display: flex; justify-content: space-around; margin: 20px 0; position: relative; }
+        .result-box { display: flex; justify-content: space-between; margin: 12px 0; gap: 10px; }
 
         .code-display {
-            background: white; padding: 15px; border-radius: 8px; width: 42%;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 2px solid transparent;
-            transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.15s ease;
+            background: white; padding: 10px; border-radius: 10px; flex: 1;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06); border: 2px solid #e2e8f0;
+            transition: all 0.2s ease;
         }        
 
-        .code-display.match { background: #d4edda; border-color: #28a745; transform: scale(1.03); }
-        .code-display.mismatch { background: #f8d7da; border-color: #dc3545; transform: scale(1.03); }
-        .code-display h3 { margin: 0 0 10px 0; font-size: 14px; color: #666; }
-        
-        .code-id { font-size: 16px; font-weight: bold; color: #333; text-align: center; }
-        .code-name { font-size: 18px; font-weight: bold; color: #007aff; margin-top: 4px; min-height: 27px; word-break: break-all; text-align: center; }
-        .code-extra { font-size: 16px; font-weight: bold; color: #333; margin-top: 4px; text-align: center; word-break: break-all; }
+        .code-display h3 { margin: 0 0 6px 0; font-size: 12px; color: #888; text-transform: uppercase; }
+        .code-id { font-size: 15px; font-weight: bold; color: #333; text-align: center; word-break: break-all; }
+        .code-name { font-size: 16px; font-weight: bold; color: #007aff; margin-top: 2px; min-height: 24px; word-break: break-all; text-align: center; }
+        .code-extra { font-size: 13px; font-weight: bold; color: #555; margin-top: 2px; text-align: center; word-break: break-all; }
 
-        button {
-            padding: 14px 28px; font-size: 18px; font-weight: bold; margin: 10px; cursor: pointer;
-            color: #ffffff; border: none; border-radius: 16px;
-            background: linear-gradient(to bottom,#4da3ff,#007aff);
-            box-shadow: 0 5px 0 #005fc2, 0 8px 18px rgba(0,0,0,.25); transition: .15s;
+        .code-display.filled{ background: #fff9d6; border-color: #e6b800; }
+        .code-display.match { background: #d4edda; border-color: #28a745; }
+        .code-display.mismatch { background: #f8d7da; border-color: #dc3545; }
+
+        button.action-btn {
+            width: 100%; padding: 12px; font-size: 18px; font-weight: bold; margin: 6px 0; cursor: pointer;
+            color: #ffffff; border: none; border-radius: 12px;
+            background: linear-gradient(to bottom, #f57c00, #e65100);
+            box-shadow: 0 4px 0 #b33900; transition: .15s;
+        }
+        button.action-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #b33900; }
+
+        #ocr-read-btn {
+            display: none; width: 100%; padding: 12px; margin: 8px 0; font-size: 18px; font-weight: bold;
+            background: linear-gradient(to bottom, #4CAF50, #2E7D32); color: white; border: none; border-radius: 12px;
+            box-shadow: 0 4px 0 #1B5E20; cursor: pointer;
         }
 
-        button:hover{ transform: translateY(-2px); box-shadow: 0 7px 0 #005fc2, 0 10px 20px rgba(0,0,0,.30); }
-        button:active{ transform: translateY(4px); box-shadow: 0 1px 0 #005fc2, 0 2px 6px rgba(0,0,0,.25); }
-
-        .code-display.filled{
-            transform: translateY(-2px) scale(1.02); background: #fff9d6; border: 2px solid #e6b800;
-            box-shadow: inset 0 2px 3px rgba(255,255,255,.9), inset 0 -3px 5px rgba(0,0,0,.15), 0 6px 12px rgba(230,184,0,.35);
+        /* 下部常時表示の履歴エリア */
+        .history-card {
+            background: #ffffff; border-radius: 12px; padding: 12px; margin-top: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06); text-align: left; border: 1px solid #e2e8f0;
         }
-
-        .code-display.filled.match{ background: #d4edda; border-color: #28a745; }
-        .code-display.filled.mismatch{ background: #f8d7da; border-color: #dc3545; }
-
-        #reset-btn{ width: 220px; height: 60px; font-size: 24px; font-weight: bold; border-radius: 10px; background: #f57c00; color: white; box-shadow: 0 5px 0 #c25b00, 0 8px 18px rgba(0,0,0,.25); }
-
-        #history-btn, #csv-btn { width: 220px; height: 60px; font-size: 22px; font-weight: bold; border-radius: 10px; color: #fff; }
-        #history-btn { background: linear-gradient(to bottom,#4da3ff,#007aff); box-shadow: 0 5px 0 #005fc2, 0 8px 18px rgba(0,0,0,.25); }
-        #csv-btn { background: linear-gradient(to bottom,#4CAF50,#2E7D32); box-shadow: 0 5px 0 #1B5E20, 0 8px 18px rgba(0,0,0,.25); }
-        
-        #clear-history-btn {
-            min-width: 220px; width: auto; height: 60px; padding: 0 20px; font-size: 22px; font-weight: bold;
-            border-radius: 10px; color: #fff; white-space: nowrap; box-sizing: border-box;
-            background: linear-gradient(to bottom,#ff7777,#d9534f);
-            box-shadow: 0 5px 0 #a52a2a, 0 8px 18px rgba(0,0,0,.25);
+        .history-card-header {
+            font-size: 14px; font-weight: bold; color: #444; border-bottom: 1px solid #eee;
+            padding-bottom: 6px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
         }
+        #history-area { max-height: 180px; overflow-y: auto; font-size: 13px; line-height: 1.5; }
+        .history-item { padding: 6px 8px; margin-bottom: 6px; border-radius: 6px; font-size: 12px; }
+        .history-item.ok { background: #eaf8ea; border-left: 4px solid #28a745; }
+        .history-item.ng { background: #fdeaea; border-left: 4px solid #dc3545; }
 
-        #ocr-read-btn{ display: none; width: 260px; height: 65px; margin: 18px auto; font-size: 24px; font-weight: bold; background: linear-gradient(to bottom,#4CAF50,#2E7D32); }
-
-        #history-area{
-            display: none; width: 90%; max-width: 700px; margin: 20px auto; background: #ffffff;
-            border: 1px solid #cccccc; border-radius: 10px; padding: 15px; max-height: 300px; overflow-y: auto;
-            text-align: left; box-shadow: 0 2px 8px rgba(0,0,0,.15); font-size: 15px; line-height: 1.6;
-        }
-
-        .history-item{ border-bottom: 1px solid #dddddd; padding: 8px 0; }
-        .history-item:last-child{ border-bottom: none; }
-        .history-item.ok{ background: #eaf8ea; border-left: 6px solid #28a745; }
-        .history-item.ng{ background: #fdeaea; border-left: 6px solid #dc3545; }
-
-        .title-box{
-            width: 100%; max-width: 500px; margin: 15px auto 20px; padding: 18px 10px; box-sizing: border-box;
-            text-align: center; color: #fff; background: linear-gradient(135deg,#009688,#00b894);
-            border-radius: 14px; border: 2px solid rgba(255,255,255,0.25); box-shadow: 0 5px 15px rgba(0,0,0,0.25);
-        }
-
-        .title-main { font-size: clamp(12px, 4.5vw, 26px); white-space: nowrap; font-weight: bold; letter-spacing: 1px; }
-        .title-sub { margin-top: 6px; font-size: 13px; letter-spacing: 2px; color: rgba(255,255,255,0.9); }
-
-        #mode-area{ margin: 15px 0; }
-
-        #barcode-mode-btn, #ocr-mode-btn{
-            width: 200px; height: 50px; font-size: 18px; font-weight: bold; color: #008000;
-            background: #ffffff; border: 2px solid #00aa44; border-radius: 14px;
-            box-shadow: 0 5px 0 #0b7a35, 0 8px 15px rgba(0,0,0,.25); transition: .2s;
-        }
-
-        .mode-active{
-            color: #ffffff !important; background: linear-gradient(to bottom,#22c55e,#15803d) !important;
-            border-color: #0b7a35; box-shadow: 0 3px 0 #0b7a35, 0 0 18px rgba(34,197,94,.7); transform: translateY(2px);
-        }
-        
-        #instruction-text { font-size: clamp(10px, 3.5vw, 16px); white-space: nowrap; text-align: center; }
-
-        #custom-modal-overlay {
+        /* モーダルダイアログ */
+        .modal-overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.5); z-index: 10000; justify-content: center; align-items: center;
         }
-        #custom-modal-box {
-            background: #fff; padding: 20px 25px; border-radius: 12px; max-width: 80%; width: 320px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3); text-align: center; font-size: 16px; font-weight: bold;
+        .modal-box {
+            background: #fff; padding: 20px; border-radius: 12px; max-width: 90%; width: 340px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2); text-align: center;
         }
-        #custom-modal-buttons { margin-top: 18px; display: flex; justify-content: center; gap: 10px; }
-        .modal-btn {
-            padding: 8px 16px; font-size: 15px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; margin: 0;
+        .modal-buttons { margin-top: 15px; display: flex; justify-content: center; gap: 10px; }
+        .modal-btn { padding: 8px 16px; font-size: 14px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; }
+        .modal-btn-ok { background: #007aff; color: #fff; }
+        .modal-btn-cancel { background: #888; color: #fff; }
+
+        .csv-upload-box {
+            text-align: left; background: #f8f9fa; border: 2px dashed #007aff; border-radius: 8px; padding: 12px; margin-top: 10px;
         }
-        .modal-btn-ok { background: #007aff; color: #fff; box-shadow: none; }
-        .modal-btn-cancel { background: #888; color: #fff; box-shadow: none; }
+        .csv-status { font-size: 12px; font-weight: bold; margin-top: 6px; color: #007aff; }
 
         .flying-tile {
-            position: fixed; z-index: 9999; pointer-events: none;
-            background: transparent !important; border: none !important; box-shadow: none !important;
-            color: #00ff66; font-size: 28px; font-weight: bold; white-space: nowrap;
-            text-shadow: 0 0 10px rgba(0, 255, 102, 0.9), 0 0 20px rgba(0, 255, 102, 0.6);
-            box-sizing: border-box; transition: all 0.65s cubic-bezier(0.25, 1, 0.5, 1);
+            position: fixed; z-index: 9999; pointer-events: none; background: transparent !important;
+            color: #00ff66; font-size: 24px; font-weight: bold; white-space: nowrap;
+            text-shadow: 0 0 10px rgba(0, 255, 102, 0.9);
+            transition: all 0.65s cubic-bezier(0.25, 1, 0.5, 1);
         }
-        .flying-tile::after { display: none !important; }
     </style>
 </head>
 
 <body>
 
-    <div class="title-box">
-        <div class="title-main">💊 コード・ＱＲ照合システム</div>
-        <div class="title-sub">Barcode & QR Matching System</div>
-    </div>
-    
-    <button id="start-audio-btn">最初にタップして起動</button>
-
-    <div class="csv-upload-box">
-        <label style="font-weight:bold; color:#333;">📂 マスターCSVファイルの読込:</label><br>
-        <input type="file" id="csv-file-input" accept=".csv" style="margin-top:8px;">
-        <div id="csv-status" class="csv-status">ファイル未選択（ID単体で照合します）</div>
-        <button id="clear-csv-btn" style="margin-top:8px; background-color:#888; color:#fff; border:none; padding:6px 12px; border-radius:4px; font-size:14px; cursor:pointer; transition: all 0.2s ease;">
-            マスターCSVを消去</button>
+    <!-- 上部タブメニュー -->
+    <div class="tab-bar">
+        <button id="tab-barcode" class="tab-item active">コード照合</button>
+        <button id="tab-ocr" class="tab-item">文字照合</button>
+        <button id="tab-csv-export" class="tab-item">CSV出力</button>
+        <button id="tab-history-clear" class="tab-item">履歴削除</button>
+        <button id="tab-master-csv" class="tab-item">マスターCSV</button>
     </div>
 
-    <div id="mode-area">
-        <button id="barcode-mode-btn" class="mode-active">コード照合</button>
-        <button id="ocr-mode-btn">文字照合</button>
-    </div>
-    
-    <p id="instruction-text">緑の枠内にコードまたはQRを合わせてください</p>
+    <div class="container">
+        <button id="start-audio-btn">最初にタップしてカメラ起動</button>
 
-    <div id="interactive" class="viewport">
-        <video id="video-element" playsinline webkit-playsinline muted autoplay></video>
-        <div class="scan-area-guide">
-            <div id="scan-result"></div>
+        <p id="instruction-text">緑の枠内にコードまたはQRを合わせてください</p>
+
+        <div id="interactive" class="viewport">
+            <video id="video-element" playsinline webkit-playsinline muted autoplay></video>
+            <div class="scan-area-guide">
+                <div id="scan-result"></div>
+            </div>
+        </div>
+
+        <button id="ocr-read-btn">文字を読み取る</button>
+
+        <div class="result-box">
+            <div class="code-display" id="box1">
+                <h3>1つ目の対象</h3>
+                <div id="code1-id" class="code-id">-</div>
+                <div id="code1-name" class="code-name"></div>
+                <div id="code1-extra" class="code-extra" style="display:none;"></div>
+            </div>
+            <div class="code-display" id="box2">
+                <h3>2つ目の対象</h3>
+                <div id="code2-id" class="code-id">-</div>
+                <div id="code2-name" class="code-name"></div>
+                <div id="code2-extra" class="code-extra" style="display:none;"></div>
+            </div>
+        </div>
+
+        <button id="reset-btn" class="action-btn">リセット</button>
+
+        <!-- 下部常時表示の履歴エリア -->
+        <div class="history-card">
+            <div class="history-card-header">
+                <span>📋 照合履歴</span>
+            </div>
+            <div id="history-area"></div>
         </div>
     </div>
 
-    <button id="ocr-read-btn">文字を読み取る</button>
-
-    <div class="result-box">
-        <div class="code-display" id="box1">
-            <h3>1つ目の対象</h3>
-            <div id="code1-id" class="code-id">-</div>
-            <div id="code1-name" class="code-name"></div>
-            <div id="code1-extra" class="code-extra" style="display:none;"></div>
-        </div>
-        <div class="code-display" id="box2">
-            <h3>2つ目の対象</h3>
-            <div id="code2-id" class="code-id">-</div>
-            <div id="code2-name" class="code-name"></div>
-            <div id="code2-extra" class="code-extra" style="display:none;"></div>
-        </div>
-    </div>
-
-    <button id="reset-btn">リセット</button>
-    <button id="history-btn">履歴表示</button>
-    <button id="csv-btn">履歴CSV出力</button>
-    <button id="clear-history-btn">履歴全削除</button>
-
-    <div id="history-area"></div>
-
-    <canvas id="crop-canvas" style="display:none;"></canvas>
-
-    <div id="custom-modal-overlay">
-        <div id="custom-modal-box">
+    <!-- 汎用モーダル -->
+    <div id="custom-modal-overlay" class="modal-overlay">
+        <div class="modal-box">
             <div id="custom-modal-msg"></div>
-            <div id="custom-modal-buttons">
+            <div id="custom-modal-buttons" class="modal-buttons">
                 <button id="modal-ok-btn" class="modal-btn modal-btn-ok">OK</button>
                 <button id="modal-cancel-btn" class="modal-btn modal-btn-cancel" style="display:none;">キャンセル</button>
             </div>
         </div>
     </div>
+
+    <!-- マスターCSV設定用モーダル -->
+    <div id="master-csv-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>📂 マスターCSV設定</h3>
+            <div class="csv-upload-box">
+                <input type="file" id="csv-file-input" accept=".csv" style="width:100%;">
+                <div id="csv-status" class="csv-status">ファイル未選択</div>
+            </div>
+            <div style="margin-top: 15px; display: flex; gap: 8px; justify-content: center;">
+                <button id="clear-csv-btn" style="background:#888; color:#fff; border:none; padding:8px 12px; border-radius:6px; font-weight:bold; cursor:pointer;">データ消去</button>
+                <button id="close-master-modal-btn" class="modal-btn modal-btn-ok">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="crop-canvas" style="display:none;"></canvas>
 
 <script>
     let code1 = null;
@@ -263,17 +242,15 @@
     let videoElement = null;
     let codeReader = null;
 
-    // 誤読防止（3回連続一致）用の変数
     let lastCandidateCode = null;
     let matchCount = 0;
-    const REQUIRED_MATCH_COUNT = 3; // 3回一致で確定
+    const REQUIRED_MATCH_COUNT = 3;
 
     let guide, scanResult, box1, box2;
     let code1IdLabel, code1NameLabel, code1ExtraLabel;
     let code2IdLabel, code2NameLabel, code2ExtraLabel;
-    let cropCanvas, ocrReadBtn, ocrModeBtn, barcodeModeBtn;
-    let historyBtn, historyArea, clearHistoryBtn, resetBtn;
-    let csvBtn, csvInput, csvStatus, clearCsvBtn;
+    let cropCanvas, ocrReadBtn, resetBtn;
+    let historyArea, csvInput, csvStatus, clearCsvBtn;
 
     let masterDataMap = {};
     let scanHistory = [];
@@ -313,9 +290,7 @@
         });
 
         setTimeout(() => {
-            if (flyTile.parentNode) {
-                flyTile.parentNode.removeChild(flyTile);
-            }
+            if (flyTile.parentNode) flyTile.parentNode.removeChild(flyTile);
         }, 650);
     }
 
@@ -352,13 +327,11 @@
 
             const handleOk = () => {
                 overlay.style.display = "none";
-                cleanup();
-                resolve(true);
+                cleanup(); resolve(true);
             };
             const handleCancel = () => {
                 overlay.style.display = "none";
-                cleanup();
-                resolve(false);
+                cleanup(); resolve(false);
             };
             const cleanup = () => {
                 okBtn.removeEventListener("click", handleOk);
@@ -383,13 +356,8 @@
         code2ExtraLabel = document.getElementById("code2-extra");
         cropCanvas = document.getElementById("crop-canvas");
         ocrReadBtn = document.getElementById("ocr-read-btn");
-        ocrModeBtn = document.getElementById("ocr-mode-btn");
-        barcodeModeBtn = document.getElementById("barcode-mode-btn");
-        historyBtn = document.getElementById("history-btn");
         historyArea = document.getElementById("history-area");
-        clearHistoryBtn = document.getElementById("clear-history-btn");
         resetBtn = document.getElementById("reset-btn");
-        csvBtn = document.getElementById("csv-btn");
         csvInput = document.getElementById("csv-file-input");
         csvStatus = document.getElementById("csv-status");
         clearCsvBtn = document.getElementById("clear-csv-btn");
@@ -402,7 +370,7 @@
                 masterDataMap = JSON.parse(savedMaster);
                 const count = Object.keys(masterDataMap).length;
                 if (count > 0 && savedMasterTime && csvStatus) {
-                    csvStatus.innerHTML = `✅ 保存済みマスターデータ適用中<br>(${savedMasterTime} 読込 / ${count} 件)`;
+                    csvStatus.innerHTML = `✅ 保存済みマスターデータ<br>(${savedMasterTime} / ${count}件)`;
                     csvStatus.style.color = "#008800";
                 }
             } catch (e) { console.error(e); }
@@ -413,7 +381,9 @@
             try { scanHistory = JSON.parse(savedHistory); } catch(e){}
         }
 
+        updateHistoryUI();
         setupEventListeners();
+        setupTabs();
     });
 
     function stopCamera() {
@@ -422,7 +392,6 @@
         }
     }
 
-    // 読み取り検出ポイントが緑枠内にあるか検証（object-fit: coverの補正適用）
     function isInsideGuide(resultPoints) {
         if (!resultPoints || resultPoints.length === 0 || !videoElement) return true;
 
@@ -435,7 +404,6 @@
         if (!videoWidth || !videoHeight) return true;
 
         const scale = Math.max(vRect.width / videoWidth, vRect.height / videoHeight);
-        
         const renderedWidth = videoWidth * scale;
         const renderedHeight = videoHeight * scale;
 
@@ -456,7 +424,6 @@
 
     async function startBarcodeScanner() {
         stopCamera();
-        
         codeReader = new ZXing.BrowserMultiFormatReader();
 
         try {
@@ -474,17 +441,14 @@
         }
     }
 
-    // 3回連続一致判定付きの検出処理
     function handleBarcodeDetected(codeStr) {
         if (!isScanning || !codeStr) return;
 
-        // OCRモードの場合は3回判定を行わず一発で通過させる
         if (currentMode === "ocr") {
             processFinalCode(codeStr);
             return;
         }
 
-        // 直前の候補コードと同じかどうかチェック
         if (codeStr === lastCandidateCode) {
             matchCount++;
         } else {
@@ -492,7 +456,6 @@
             matchCount = 1;
         }
 
-        // 3回連続一致した場合のみ確定処理を実行
         if (matchCount >= REQUIRED_MATCH_COUNT) {
             matchCount = 0;
             lastCandidateCode = null;
@@ -500,7 +463,6 @@
         }
     }
 
-    // 確定時の処理
     function processFinalCode(codeStr) {
         if (!code1) {
             isScanning = false;
@@ -600,14 +562,13 @@
     function updateHistoryUI() {
         if (!historyArea) return;
         if (scanHistory.length === 0) {
-            historyArea.innerHTML = "<div>履歴はありません</div>";
+            historyArea.innerHTML = "<div style='color:#888; text-align:center;'>履歴なし</div>";
             return;
         }
         historyArea.innerHTML = scanHistory.map(item => `
             <div class="history-item ${item.result === '一致' ? 'ok' : 'ng'}">
                 <strong>[${item.time}] ${item.result}</strong><br>
-                1: ${item.code1}<br>
-                2: ${item.code2}
+                1: ${item.code1} / 2: ${item.code2}
             </div>
         `).join("");
     }
@@ -639,6 +600,69 @@
         return cropCanvas;
     }
 
+    function setupTabs() {
+        const tabBarcode = document.getElementById("tab-barcode");
+        const tabOcr = document.getElementById("tab-ocr");
+        const tabCsvExport = document.getElementById("tab-csv-export");
+        const tabHistoryClear = document.getElementById("tab-history-clear");
+        const tabMasterCsv = document.getElementById("tab-master-csv");
+
+        tabBarcode.addEventListener("click", () => {
+            tabBarcode.classList.add("active");
+            tabOcr.classList.remove("active");
+            currentMode = "barcode";
+            guide.classList.remove("ocr-mode");
+            ocrReadBtn.style.display = "none";
+            document.getElementById("instruction-text").textContent = "緑の枠内にコードまたはQRを合わせてください";
+            resetScan();
+        });
+
+        tabOcr.addEventListener("click", () => {
+            tabOcr.classList.add("active");
+            tabBarcode.classList.remove("active");
+            currentMode = "ocr";
+            guide.classList.add("ocr-mode");
+            ocrReadBtn.style.display = "block";
+            document.getElementById("instruction-text").textContent = "枠内に文字を合わせて「文字を読み取る」を押してください";
+            resetScan();
+        });
+
+        tabCsvExport.addEventListener("click", async () => {
+            if (scanHistory.length === 0) {
+                await showAppAlert("出力する履歴がありません。");
+                return;
+            }
+            let csvContent = "data:text/csv;charset=utf-8,時間,結果,1つ目,2つ目\n";
+            scanHistory.forEach(row => {
+                csvContent += `${row.time},${row.result},"${row.code1}","${row.code2}"\n`;
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "照合履歴.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        tabHistoryClear.addEventListener("click", async () => {
+            const confirmed = await showAppConfirm("履歴を全削除しますか？");
+            if (confirmed) {
+                scanHistory = [];
+                localStorage.removeItem("scanHistory");
+                updateHistoryUI();
+            }
+        });
+
+        tabMasterCsv.addEventListener("click", () => {
+            document.getElementById("master-csv-modal").style.display = "flex";
+        });
+
+        document.getElementById("close-master-modal-btn").addEventListener("click", () => {
+            document.getElementById("master-csv-modal").style.display = "none";
+        });
+    }
+
     function setupEventListeners() {
         const startAudioBtn = document.getElementById("start-audio-btn");
         if (startAudioBtn) {
@@ -654,26 +678,6 @@
                 this.style.display = "none";
             });
         }
-
-        barcodeModeBtn.addEventListener("click", () => {
-            currentMode = "barcode";
-            barcodeModeBtn.classList.add("mode-active");
-            ocrModeBtn.classList.remove("mode-active");
-            guide.classList.remove("ocr-mode");
-            ocrReadBtn.style.display = "none";
-            document.getElementById("instruction-text").textContent = "緑の枠内にコードまたはQRを合わせてください";
-            resetScan();
-        });
-
-        ocrModeBtn.addEventListener("click", () => {
-            currentMode = "ocr";
-            ocrModeBtn.classList.add("mode-active");
-            barcodeModeBtn.classList.remove("mode-active");
-            guide.classList.add("ocr-mode");
-            ocrReadBtn.style.display = "block";
-            document.getElementById("instruction-text").textContent = "枠内に文字を合わせて「文字を読み取る」を押してください";
-            resetScan();
-        });
 
         ocrReadBtn.addEventListener("click", async () => {
             const croppedCanvas = cropGuideImageForOCR();
@@ -704,42 +708,6 @@
 
         resetBtn.addEventListener("click", resetScan);
 
-        historyBtn.addEventListener("click", () => {
-            if (historyArea.style.display === "block") {
-                historyArea.style.display = "none";
-            } else {
-                updateHistoryUI();
-                historyArea.style.display = "block";
-            }
-        });
-
-        clearHistoryBtn.addEventListener("click", async () => {
-            const confirmed = await showAppConfirm("履歴を全削除しますか？");
-            if (confirmed) {
-                scanHistory = [];
-                localStorage.removeItem("scanHistory");
-                updateHistoryUI();
-            }
-        });
-
-        csvBtn.addEventListener("click", async () => {
-            if (scanHistory.length === 0) {
-                await showAppAlert("出力する履歴がありません。");
-                return;
-            }
-            let csvContent = "data:text/csv;charset=utf-8,時間,結果,1つ目,2つ目\n";
-            scanHistory.forEach(row => {
-                csvContent += `${row.time},${row.result},"${row.code1}","${row.code2}"\n`;
-            });
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "照合履歴.csv");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        });
-
         if (csvInput) {
             csvInput.addEventListener("change", function(e) {
                 const file = e.target.files[0];
@@ -755,14 +723,14 @@
 
         if (clearCsvBtn) {
             clearCsvBtn.addEventListener("click", async () => {
-                const confirmed = await showAppConfirm("本当にマスターCSVを全消去しますか？<br>（この操作は取り消せません）");
+                const confirmed = await showAppConfirm("マスターCSVを消去しますか？");
                 if (confirmed) {
                     localStorage.removeItem("masterDataMap");
                     localStorage.removeItem("masterDataTime");
                     masterDataMap = {};
                     if (csvStatus) {
                         csvStatus.innerHTML = "未読み込み";
-                        csvStatus.style.color = "#666666";
+                        csvStatus.style.color = "#888";
                     }
                     await showAppAlert("マスターデータをクリアしました。");
                 }
@@ -800,7 +768,7 @@
         localStorage.setItem("masterDataTime", formattedTime);
 
         if (csvStatus) {
-            csvStatus.innerHTML = `✅ マスターデータ登録完了<br>(${formattedTime} 読込 / ${count} 件)`;
+            csvStatus.innerHTML = `✅ マスターデータ登録完了<br>(${formattedTime} / ${count}件)`;
             csvStatus.style.color = "#008800";
         }
     }
