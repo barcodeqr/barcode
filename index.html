@@ -7,7 +7,7 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#00aa44">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>コード・ＱＲ照合システム</title>
+    <title>コード・ＱＲ照合システム（オフライン対応版）</title>
     
     <script src="https://unpkg.com/@zxing/library@latest"></script>
     <script src="https://unpkg.com/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -252,9 +252,8 @@
     let masterDataMap = {};
     let scanHistory = [];
 
-    // --- Web Audio API による堅牢な音声管理 ---
+    // --- 完全オフライン対応 Web Audio 合成音ライブラリ ---
     let audioCtx = null;
-    const soundBuffers = {};
 
     function initWebAudio() {
         if (!audioCtx) {
@@ -264,37 +263,70 @@
         if (audioCtx.state === 'suspended') {
             audioCtx.resume();
         }
-        
-        // 事前に音声ファイルをロードしてWeb Audioバッファに変換
-        loadSound('scan', 'scan.mp3');
-        loadSound('match', 'pingpong.mp3');
-        loadSound('mismatch', 'boo.mp3');
     }
 
-    async function loadSound(name, url) {
-        try {
-            const response = await fetch(url);
-            const arrayBuffer = await response.arrayBuffer();
-            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-            soundBuffers[name] = audioBuffer;
-        } catch (e) {
-            console.error("音声ロード失敗:", name, url, e);
+    function playSound(type) {
+        if (!audioCtx) return;
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
         }
-    }
 
-    function playSound(name) {
-        if (!audioCtx || !soundBuffers[name]) return;
-        try {
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-            // 独立したオーディオノードを毎回生成（何重にも重なって完全に最後まで再生される）
-            const source = audioCtx.createBufferSource();
-            source.buffer = soundBuffers[name];
-            source.connect(audioCtx.destination);
-            source.start(0);
-        } catch (e) {
-            console.error("Web Audio Play error:", e);
+        const now = audioCtx.currentTime;
+
+        if (type === 'scan') {
+            // ピッ（読み取り音）
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(2000, now);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.08);
+
+        } else if (type === 'match') {
+            // ピンポーン（OK判定音：絶対途切れず綺麗に響く高音）
+            // 1音目: ミ (659.25Hz)
+            const osc1 = audioCtx.createOscillator();
+            const gain1 = audioCtx.createGain();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(659.25, now);
+            gain1.gain.setValueAtTime(0.4, now);
+            gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+            osc1.connect(gain1);
+            gain1.connect(audioCtx.destination);
+            osc1.start(now);
+            osc1.stop(now + 0.35);
+
+            // 2音目: ソ# (830.61Hz)
+            const osc2 = audioCtx.createOscillator();
+            const gain2 = audioCtx.createGain();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(830.61, now + 0.18);
+            gain2.gain.setValueAtTime(0.5, now + 0.18);
+            gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.75);
+            osc2.connect(gain2);
+            gain2.connect(audioCtx.destination);
+            osc2.start(now + 0.18);
+            osc2.stop(now + 0.75);
+
+        } else if (type === 'mismatch') {
+            // ブブー（NG判定音：低い和音で明確にお知らせ）
+            const freqs = [150, 225]; // 低い警戒和音
+            freqs.forEach(freq => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(freq, now);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            });
         }
     }
 
@@ -503,7 +535,7 @@
             code1 = codeStr;
             setCode(1, codeStr);
             
-            // 1つ目の読み取り音
+            // 1つ目：読み取り音（ピッ）
             playSound('scan');
             
             setTimeout(() => { isScanning = true; }, 1200);
@@ -513,7 +545,7 @@
             code2 = codeStr;
             setCode(2, codeStr);
             
-            // 2つ目読み取り時は判定音（OK/NG）との被りを防ぐため、あえてscan音を鳴らさず即判定へ
+            // 2つ目：判定（OK/NG音を即座に明瞭再生）
             checkMatch();
         }
     }
@@ -550,14 +582,14 @@
             scanResult.className = "ok";
             box1.classList.add("match");
             box2.classList.add("match");
-            playSound('match'); // OK音をクリアかつフルで再生
+            playSound('match'); // ピンポーン音
         } else {
             scanResult.textContent = "NG";
             scanResult.className = "ng";
             guide.classList.add("ng");
             box1.classList.add("mismatch");
             box2.classList.add("mismatch");
-            playSound('mismatch'); // NG音をクリアかつフルで再生
+            playSound('mismatch'); // ブブー音
         }
 
         const now = new Date();
@@ -708,9 +740,7 @@
         const startAudioBtn = document.getElementById("start-audio-btn");
         if (startAudioBtn) {
             startAudioBtn.addEventListener("click", function () {
-                // 初回タップ時に Web Audio API を初期化（ブラウザの自動再生ブロックを解除）
                 initWebAudio();
-
                 startBarcodeScanner();
                 this.style.display = "none";
             });
