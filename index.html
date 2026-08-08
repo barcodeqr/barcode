@@ -127,10 +127,10 @@
         .history-item.ok { background: #eaf8ea; border-left: 4px solid #28a745; }
         .history-item.ng { background: #fdeaea; border-left: 4px solid #dc3545; }
 
-        /* モーダルダイアログ */
+        /* モーダル共通ベース */
         .modal-overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.5); z-index: 10000; justify-content: center; align-items: center;
+            background: rgba(0, 0, 0, 0.5); justify-content: center; align-items: center;
         }
         .modal-box {
             background: #fff; padding: 20px; border-radius: 12px; max-width: 90%; width: 340px;
@@ -140,6 +140,10 @@
         .modal-btn { padding: 8px 16px; font-size: 14px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; }
         .modal-btn-ok { background: #007aff; color: #fff; }
         .modal-btn-cancel { background: #888; color: #fff; }
+
+        /* 重なり順（z-index）の明確化 */
+        #master-csv-modal { z-index: 10000; }
+        #custom-modal-overlay { z-index: 20000; } /* 確認メッセージ側を一番手前に配置 */
 
         .csv-upload-box {
             text-align: left; background: #f8f9fa; border: 2px dashed #007aff; border-radius: 8px; padding: 12px; margin-top: 10px;
@@ -157,7 +161,7 @@
 
 <body>
 
-    <!-- 上部タブメニュー -->
+    <!-- 上部タブナビゲーション -->
     <div class="tab-bar">
         <button id="tab-barcode" class="tab-item active">コード照合</button>
         <button id="tab-ocr" class="tab-item">文字照合</button>
@@ -206,7 +210,7 @@
         </div>
     </div>
 
-    <!-- 汎用モーダル -->
+    <!-- 汎用確認モーダル（最前面表示） -->
     <div id="custom-modal-overlay" class="modal-overlay">
         <div class="modal-box">
             <div id="custom-modal-msg"></div>
