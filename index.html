@@ -251,36 +251,28 @@
     let masterDataMap = {};
     let scanHistory = [];
 
-    // 音声インスタンスを個別に生成してバッティングを回避
-    const audioScan1 = new Audio('scan.mp3');
-    const audioScan2 = new Audio('scan.mp3');
-    const audioMatch = new Audio('pingpong.mp3');
-    const audioMismatch = new Audio('boo.mp3');
-
-    // 再生状態を強制リセットして確実に鳴らす関数
-    function playAudio(audioObj) {
-        if (!audioObj) return;
-        try {
-            audioObj.pause();
-            audioObj.currentTime = 0;
-            
-            const playPromise = audioObj.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(e => {
-                    console.warn("音声の再生が制限されました:", e);
-                });
+    // 音声を確実に連続再生するための動的生成関数
+    function playAudioFile(filename, delay = 0) {
+        setTimeout(() => {
+            try {
+                const snd = new Audio(filename);
+                const playPromise = snd.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(e => console.warn("Audio play blocked:", e));
+                }
+            } catch (e) {
+                console.error("Audio error:", e);
             }
-        } catch(e) {
-            console.error("Audio error:", e);
-        }
+        }, delay);
     }
 
-    // ブラウザの自動再生制御を初期化（タップ時に無音ロードを行う）
-    function initAudioUserGesture() {
-        [audioScan1, audioScan2, audioMatch, audioMismatch].forEach(audio => {
-            audio.play().then(() => {
-                audio.pause();
-                audio.currentTime = 0;
+    // スマホの自動再生規制の解除用
+    function unlockAudioContext() {
+        ['scan.mp3', 'pingpong.mp3', 'boo.mp3'].forEach(file => {
+            const a = new Audio(file);
+            a.volume = 0.01; // ほぼ無音
+            a.play().then(() => {
+                a.pause();
             }).catch(() => {});
         });
     }
@@ -390,7 +382,7 @@
                 masterDataMap = JSON.parse(savedMaster);
                 const count = Object.keys(masterDataMap).length;
                 if (count > 0 && savedMasterTime && csvStatus) {
-                    csvStatus.innerHTML = `✅ 保存済みマスターデータ<br>(${savedMasterTime} /${count}件)`;
+                    csvStatus.innerHTML = `✅ 保存済みマスターデータ<br>(${savedMasterTime} / ${count}件)`;
                     csvStatus.style.color = "#008800";
                 }
             } catch (e) { console.error(e); }
@@ -490,7 +482,8 @@
             code1 = codeStr;
             setCode(1, codeStr);
             
-            playAudio(audioScan1);
+            // 1回目の読み取り音
+            playAudioFile('scan.mp3');
             
             setTimeout(() => { isScanning = true; }, 1200);
         } else if (!code2) {
@@ -499,6 +492,8 @@
             code2 = codeStr;
             setCode(2, codeStr);
             
+            // 2回目の読み取り音を即座に鳴らし、少し遅らせて判定音（OK/NG）を鳴らす
+            playAudioFile('scan.mp3', 0);
             checkMatch();
         }
     }
@@ -535,14 +530,16 @@
             scanResult.className = "ok";
             box1.classList.add("match");
             box2.classList.add("match");
-            playAudio(audioMatch);
+            // 読み取り音（scan.mp3）が終わるタイミング（約300ms後）でOK音を鳴らす
+            playAudioFile('pingpong.mp3', 350);
         } else {
             scanResult.textContent = "NG";
             scanResult.className = "ng";
             guide.classList.add("ng");
             box1.classList.add("mismatch");
             box2.classList.add("mismatch");
-            playAudio(audioMismatch);
+            // 読み取り音（scan.mp3）が終わるタイミング（約300ms後）でNG音を鳴らす
+            playAudioFile('boo.mp3', 350);
         }
 
         const now = new Date();
@@ -589,8 +586,8 @@
         }
         historyArea.innerHTML = scanHistory.map(item => `
             <div class="history-item ${item.result === '一致' ? 'ok' : 'ng'}">
-                <strong>[${item.time}]${item.result}</strong><br>
-                1: ${item.code1} / 2:${item.code2}
+                <strong>[${item.time}] ${item.result}</strong><br>
+                1: ${item.code1} / 2: ${item.code2}
             </div>
         `).join("");
     }
@@ -693,7 +690,7 @@
         const startAudioBtn = document.getElementById("start-audio-btn");
         if (startAudioBtn) {
             startAudioBtn.addEventListener("click", function () {
-                initAudioUserGesture();
+                unlockAudioContext();
                 startBarcodeScanner();
                 this.style.display = "none";
             });
@@ -788,7 +785,7 @@
         localStorage.setItem("masterDataTime", formattedTime);
 
         if (csvStatus) {
-            csvStatus.innerHTML = `✅ マスターデータ登録完了<br>(${formattedTime} /${count}件)`;
+            csvStatus.innerHTML = `✅ マスターデータ登録完了<br>(${formattedTime} / ${count}件)`;
             csvStatus.style.color = "#008800";
         }
     }
