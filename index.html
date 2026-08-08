@@ -260,19 +260,24 @@
     let masterDataMap = {};
     let scanHistory = [];
 
-    const audioScan = new Audio('scan.mp3');
+    // 音声インスタンスを個別に生成してバッティングを回避
+    const audioScan1 = new Audio('scan.mp3');
+    const audioScan2 = new Audio('scan.mp3');
     const audioMatch = new Audio('pingpong.mp3');
     const audioMismatch = new Audio('boo.mp3');
 
-    // 安定性を向上させた音声再生関数
+    // 再生状態を強制リセットして確実に鳴らす関数
     function playAudio(audioObj) {
         if (!audioObj) return;
         try {
             audioObj.pause();
             audioObj.currentTime = 0;
-            let playPromise = audioObj.play();
+            
+            const playPromise = audioObj.play();
             if (playPromise !== undefined) {
-                playPromise.catch(e => console.warn("音声再生が制限されました:", e));
+                playPromise.catch(e => {
+                    console.warn("音声の再生が制限されました:", e);
+                });
             }
         } catch(e) {
             console.error("Audio error:", e);
@@ -483,7 +488,10 @@
             triggerFlyAnimation(box1, codeStr);
             code1 = codeStr;
             setCode(1, codeStr);
-            playAudio(audioScan); // 1つ目は読み取り音を鳴らす
+            
+            // 1つ目の読み取り音
+            playAudio(audioScan1);
+            
             setTimeout(() => { isScanning = true; }, 1200);
         } else if (!code2) {
             isScanning = false;
@@ -491,8 +499,11 @@
             code2 = codeStr;
             setCode(2, codeStr);
             
-            // 2つ目セット時は読み取り音をスキップして即判定へ（音の重なりを完全回避）
-            setTimeout(() => { checkMatch(); }, 200);
+            // 2つ目の読み取り音（別インスタンス）
+            playAudio(audioScan2);
+            
+            // 判定音（OK/NG）と重ねないよう400ms待ってから照合判定を実行
+            setTimeout(() => { checkMatch(); }, 400);
         }
     }
 
@@ -528,14 +539,14 @@
             scanResult.className = "ok";
             box1.classList.add("match");
             box2.classList.add("match");
-            playAudio(audioMatch); // 衝突なく確実にOK音が鳴る
+            playAudio(audioMatch); // 確実にOK音を再生
         } else {
             scanResult.textContent = "NG";
             scanResult.className = "ng";
             guide.classList.add("ng");
             box1.classList.add("mismatch");
             box2.classList.add("mismatch");
-            playAudio(audioMismatch); // 衝突なく確実にNG音が鳴る
+            playAudio(audioMismatch); // 確実にNG音を再生
         }
 
         const now = new Date();
@@ -686,8 +697,8 @@
         const startAudioBtn = document.getElementById("start-audio-btn");
         if (startAudioBtn) {
             startAudioBtn.addEventListener("click", function () {
-                // 初回タップ時に全ての音声を一度ミュートでアンロック
-                [audioScan, audioMatch, audioMismatch].forEach(audio => {
+                // 初回タップ時に全ての音声を一度ミュート状態から再生してアンロック
+                [audioScan1, audioScan2, audioMatch, audioMismatch].forEach(audio => {
                     audio.play().then(() => {
                         audio.pause();
                         audio.currentTime = 0;
