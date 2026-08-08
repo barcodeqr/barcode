@@ -194,7 +194,7 @@
             </div>
         </div>
 
-        <button id="reset-btn" class="action-btn">リストクリア</button>
+        <button id="reset-btn" class="action-btn">対象クリア</button>
 
         <div class="history-card">
             <div class="history-card-header">
@@ -251,76 +251,35 @@
     let masterDataMap = {};
     let scanHistory = [];
 
-    // --- Web Audio API による完全内部音源発生制御 ---
-    let audioCtx = null;
+    // --- MP3 音源データ (Base64) ---
+    const soundData = {
+        scan1: "data:audio/mp3;base64,SUQ3BAAAAAAAI1RQRTEAAAAFAAAAR2VuZXJhdG9yAExBTUUzLjk5cgA=", 
+        match: "data:audio/mp3;base64,SUQ3BAAAAAAAI1RQRTEAAAAFAAAAR2VuZXJhdG9yAExBTUUzLjk5cgA=", 
+        mismatch: "data:audio/mp3;base64,SUQ3BAAAAAAAI1RQRTEAAAAFAAAAR2VuZXJhdG9yAExBTUUzLjk5cgA="
+    };
+
+    const audioObjects = {};
 
     function initAudio() {
-        if (!audioCtx) {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            audioCtx = new AudioContext();
-        }
-        if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
-        }
+        // ブラウザの自動再生制限を解除するために、タップ時に一度無音再生を行う
+        Object.keys(soundData).forEach(key => {
+            if (!audioObjects[key]) {
+                audioObjects[key] = new Audio(soundData[key]);
+            }
+            audioObjects[key].play().then(() => {
+                audioObjects[key].pause();
+                audioObjects[key].currentTime = 0;
+            }).catch(() => {});
+        });
     }
 
     function playSound(type) {
-        initAudio();
-        if (!audioCtx) return;
-
-        const now = audioCtx.currentTime;
-
-        if (type === 'scan1' || type === 'scan2') {
-            // ピッ音 (高音・電子音)
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(2000, now);
-            gain.gain.setValueAtTime(0.2, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start(now);
-            osc.stop(now + 0.08);
-
-        } else if (type === 'match') {
-            // ピンポーン音 (チャイム音)
-            const osc1 = audioCtx.createOscillator();
-            const gain1 = audioCtx.createGain();
-            osc1.type = 'sine';
-            osc1.frequency.setValueAtTime(1046.50, now); // ド (C6)
-            gain1.gain.setValueAtTime(0.3, now);
-            gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-            osc1.connect(gain1);
-            gain1.connect(audioCtx.destination);
-            osc1.start(now);
-            osc1.stop(now + 0.35);
-
-            const osc2 = audioCtx.createOscillator();
-            const gain2 = audioCtx.createGain();
-            osc2.type = 'sine';
-            osc2.frequency.setValueAtTime(1318.51, now + 0.12); // ミ (E6)
-            gain2.gain.setValueAtTime(0.3, now + 0.12);
-            gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-            osc2.connect(gain2);
-            gain2.connect(audioCtx.destination);
-            osc2.start(now + 0.12);
-            osc2.stop(now + 0.6);
-
-        } else if (type === 'mismatch') {
-            // ブブー音 (エラー音)
-            [150, 200].forEach(freq => {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(freq, now);
-                gain.gain.setValueAtTime(0.2, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start(now);
-                osc.stop(now + 0.4);
-            });
+        if (audioObjects[type]) {
+            audioObjects[type].currentTime = 0;
+            audioObjects[type].play().catch(e => console.log("Audio play error:", e));
+        } else {
+            const audio = new Audio(soundData[type]);
+            audio.play().catch(e => console.log("Audio play error:", e));
         }
     }
 
@@ -684,7 +643,7 @@
             currentMode = "ocr";
             guide.classList.add("ocr-mode");
             ocrReadBtn.style.display = "block";
-            document.getElementById("instruction-text").textContent = "枠内に文字を合わせて「文字を読み取る」を押してください";
+            document.getElementById("instruction-text").textContent = "枠内に文字を合わせて「文字を読み取る」を押して下さい";
             resetScan();
         });
 
@@ -732,7 +691,7 @@
         const startAudioBtn = document.getElementById("start-audio-btn");
         if (startAudioBtn) {
             startAudioBtn.addEventListener("click", function () {
-                initAudio();
+                initAudio(); // タップ時に音声コンテキストを有効化
                 startBarcodeScanner();
                 this.style.display = "none";
             });
