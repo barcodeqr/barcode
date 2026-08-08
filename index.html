@@ -251,36 +251,38 @@
     let masterDataMap = {};
     let scanHistory = [];
 
-    // --- MP3 音源データ (Base64) ---
-    const soundData = {
-        scan1: "data:audio/mp3;base64,SUQ3BAAAAAAAI1RQRTEAAAAFAAAAR2VuZXJhdG9yAExBTUUzLjk5cgA=", 
-        match: "data:audio/mp3;base64,SUQ3BAAAAAAAI1RQRTEAAAAFAAAAR2VuZXJhdG9yAExBTUUzLjk5cgA=", 
-        mismatch: "data:audio/mp3;base64,SUQ3BAAAAAAAI1RQRTEAAAAFAAAAR2VuZXJhdG9yAExBTUUzLjk5cgA="
-    };
+    // 音声インスタンスを個別に生成してバッティングを回避
+    const audioScan1 = new Audio('scan.mp3');
+    const audioScan2 = new Audio('scan.mp3');
+    const audioMatch = new Audio('pingpong.mp3');
+    const audioMismatch = new Audio('boo.mp3');
 
-    const audioObjects = {};
-
-    function initAudio() {
-        // ブラウザの自動再生制限を解除するために、タップ時に一度無音再生を行う
-        Object.keys(soundData).forEach(key => {
-            if (!audioObjects[key]) {
-                audioObjects[key] = new Audio(soundData[key]);
+    // 再生状態を強制リセットして確実に鳴らす関数
+    function playAudio(audioObj) {
+        if (!audioObj) return;
+        try {
+            audioObj.pause();
+            audioObj.currentTime = 0;
+            
+            const playPromise = audioObj.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(e => {
+                    console.warn("音声の再生が制限されました:", e);
+                });
             }
-            audioObjects[key].play().then(() => {
-                audioObjects[key].pause();
-                audioObjects[key].currentTime = 0;
-            }).catch(() => {});
-        });
+        } catch(e) {
+            console.error("Audio error:", e);
+        }
     }
 
-    function playSound(type) {
-        if (audioObjects[type]) {
-            audioObjects[type].currentTime = 0;
-            audioObjects[type].play().catch(e => console.log("Audio play error:", e));
-        } else {
-            const audio = new Audio(soundData[type]);
-            audio.play().catch(e => console.log("Audio play error:", e));
-        }
+    // ブラウザの自動再生制御を初期化（タップ時に無音ロードを行う）
+    function initAudioUserGesture() {
+        [audioScan1, audioScan2, audioMatch, audioMismatch].forEach(audio => {
+            audio.play().then(() => {
+                audio.pause();
+                audio.currentTime = 0;
+            }).catch(() => {});
+        });
     }
 
     function triggerFlyAnimation(targetBox, textVal) {
@@ -388,7 +390,7 @@
                 masterDataMap = JSON.parse(savedMaster);
                 const count = Object.keys(masterDataMap).length;
                 if (count > 0 && savedMasterTime && csvStatus) {
-                    csvStatus.innerHTML = `✅ 保存済みマスターデータ<br>(${savedMasterTime} / ${count}件)`;
+                    csvStatus.innerHTML = `✅ 保存済みマスターデータ<br>(${savedMasterTime} /${count}件)`;
                     csvStatus.style.color = "#008800";
                 }
             } catch (e) { console.error(e); }
@@ -488,7 +490,7 @@
             code1 = codeStr;
             setCode(1, codeStr);
             
-            playSound('scan1');
+            playAudio(audioScan1);
             
             setTimeout(() => { isScanning = true; }, 1200);
         } else if (!code2) {
@@ -533,14 +535,14 @@
             scanResult.className = "ok";
             box1.classList.add("match");
             box2.classList.add("match");
-            playSound('match');
+            playAudio(audioMatch);
         } else {
             scanResult.textContent = "NG";
             scanResult.className = "ng";
             guide.classList.add("ng");
             box1.classList.add("mismatch");
             box2.classList.add("mismatch");
-            playSound('mismatch');
+            playAudio(audioMismatch);
         }
 
         const now = new Date();
@@ -587,8 +589,8 @@
         }
         historyArea.innerHTML = scanHistory.map(item => `
             <div class="history-item ${item.result === '一致' ? 'ok' : 'ng'}">
-                <strong>[${item.time}] ${item.result}</strong><br>
-                1: ${item.code1} / 2: ${item.code2}
+                <strong>[${item.time}]${item.result}</strong><br>
+                1: ${item.code1} / 2:${item.code2}
             </div>
         `).join("");
     }
@@ -691,7 +693,7 @@
         const startAudioBtn = document.getElementById("start-audio-btn");
         if (startAudioBtn) {
             startAudioBtn.addEventListener("click", function () {
-                initAudio(); // タップ時に音声コンテキストを有効化
+                initAudioUserGesture();
                 startBarcodeScanner();
                 this.style.display = "none";
             });
@@ -786,7 +788,7 @@
         localStorage.setItem("masterDataTime", formattedTime);
 
         if (csvStatus) {
-            csvStatus.innerHTML = `✅ マスターデータ登録完了<br>(${formattedTime} / ${count}件)`;
+            csvStatus.innerHTML = `✅ マスターデータ登録完了<br>(${formattedTime} /${count}件)`;
             csvStatus.style.color = "#008800";
         }
     }
