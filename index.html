@@ -536,14 +536,14 @@
                 box1.classList.add("match");
                 box2.classList.add("match");
                 // 2回目のピッから少し間隔を空けて（500ms）OK音を鳴らす
-                playAudio('pingpong', 700);
+                playAudio('pingpong', 1000);
             } else {
                 scanResult.textContent = "NG";
                 scanResult.className = "ng";
                 guide.classList.add("ng");
                 box1.classList.add("mismatch");
                 box2.classList.add("mismatch");
-                // 2回目のピッから少し間隔を空けて（400ms）NG音を鳴らす
+                // 2回目のピッから少し間隔を空けて（500ms）NG音を鳴らす
                 playAudio('boo', 500);
             }
 
