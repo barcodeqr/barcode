@@ -528,34 +528,36 @@
     }
 
     function checkMatch() {
-        const isMatch = (code1 === code2);
+            const isMatch = (code1 === code2);
         
-        if (isMatch) {
-            scanResult.textContent = "OK";
-            scanResult.className = "ok";
-            box1.classList.add("match");
-            box2.classList.add("match");
-            playAudio('pingpong', 350);
-        } else {
-            scanResult.textContent = "NG";
-            scanResult.className = "ng";
-            guide.classList.add("ng");
-            box1.classList.add("mismatch");
-            box2.classList.add("mismatch");
-            playAudio('boo', 350);
-        }
+            if (isMatch) {
+                scanResult.textContent = "OK";
+                scanResult.className = "ok";
+                box1.classList.add("match");
+                box2.classList.add("match");
+                // 2回目のピッから少し間隔を空けて（500ms）OK音を鳴らす
+                playAudio('pingpong', 500);
+            } else {
+                scanResult.textContent = "NG";
+                scanResult.className = "ng";
+                guide.classList.add("ng");
+                box1.classList.add("mismatch");
+                box2.classList.add("mismatch");
+                // 2回目のピッから少し間隔を空けて（500ms）NG音を鳴らす
+                playAudio('boo', 500);
+            }
 
-        const now = new Date();
-        const timeStr = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
-        scanHistory.unshift({
-            time: timeStr,
-            code1: code1,
-            code2: code2,
-            result: isMatch ? "一致" : "不一致"
-        });
-        localStorage.setItem("scanHistory", JSON.stringify(scanHistory));
-        updateHistoryUI();
-    }
+            const now = new Date();
+            const timeStr = `${now.getHours().toString().padStart(2,'0')}:    ${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+            scanHistory.unshift({
+                time: timeStr,
+                code1: code1,
+                code2: code2,
+                result: isMatch ? "一致" : "不一致"
+            });
+            localStorage.setItem("scanHistory", JSON.stringify(scanHistory));
+            updateHistoryUI();
+        }
 
     function resetScan() {
         code1 = null;
