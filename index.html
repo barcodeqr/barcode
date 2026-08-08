@@ -264,12 +264,22 @@
     const audioMatch = new Audio('pingpong.mp3');
     const audioMismatch = new Audio('boo.mp3');
 
+    // 改善版：音声を安全・確実に出力する関数
     function playAudio(audioObj) {
         if (!audioObj) return;
+    
+        // 一度再生を止めて頭出し（エラー回避のためPromiseを待つ）
+        audioObj.pause();
         audioObj.currentTime = 0;
-        audioObj.play().catch(e => console.error("Audio play error:", e));
-    }
 
+        // 再生処理を実行（ブラウザに拒否された場合の処理を追加）
+        let playPromise = audioObj.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(e => {
+                console.warn("音声再生がブロックされました:", e);
+            });
+        }
+    }
     function triggerFlyAnimation(targetBox, textVal) {
         const guideElem = document.querySelector(".scan-area-guide");
         if (!guideElem || !targetBox || !textVal) return;
