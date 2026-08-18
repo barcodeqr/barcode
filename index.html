@@ -698,7 +698,7 @@
             box1.classList.add("match");
             box2.classList.add("match");
             
-            playAudio('pingpong', 300, 0.15); 
+            playAudio('pingpong', 500); 
         } else {
             scanResult.textContent = "NG";
             scanResult.className = "ng";
@@ -706,7 +706,7 @@
             box1.classList.add("mismatch");
             box2.classList.add("mismatch");
             
-            playAudio('boo', 300, 0);
+            playAudio('boo', 500);
         }
 
         const now = new Date();
