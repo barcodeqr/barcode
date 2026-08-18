@@ -12,148 +12,228 @@
     <script src="https://unpkg.com/@zxing/library@latest"></script>
     <script src="https://unpkg.com/tesseract.js@5/dist/tesseract.min.js"></script>
     
-    <style>
-        * { box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; text-align: center; margin: 0; padding: 0; background: #f4f6f9; color: #333; }
-        
-        .tab-bar {
-            display: flex; background: #ffffff; border-bottom: 2px solid #e0e0e0;
-            position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            overflow-x: auto; white-space: nowrap;
-        }
-        .tab-item {
-            flex: 1; min-width: 75px; padding: 12px 5px; font-size: 13px; font-weight: bold; color: #666;
-            background: none; border: none; border-bottom: 3px solid transparent; border-radius: 0;
-            cursor: pointer; margin: 0; box-shadow: none !important; transition: all 0.2s;
-        }
-        .tab-item:hover { transform: none; background: #f8f9fa; }
-        .tab-item:active { transform: none; }
-        .tab-item.active { color: #00aa44; border-bottom-color: #00aa44; background: #f0fff4; }
+<style>
+    * { 
+        box-sizing: border-box; 
+    }
 
-        .container { padding: 12px; max-width: 500px; margin: 0 auto; }
+    /* iOS Safari 100vh問題対策＆画面全体のスクロール防止 */
+    html, body {
+        height: 100vh;
+        height: calc(var(--vh, 1vh) * 100);
+        margin: 0;
+        padding: 0;
+        overflow: hidden; /* 画面全体の余計なスクロールやバウンスを防止 */
+    }
 
-        #start-audio-btn {
-            background: #ffcc00; color: #333; font-weight: bold; border: 2px solid #ff9900;
-            padding: 12px 20px; font-size: 16px; margin: 10px 0; animation: pulse 1.5s infinite;
-            border-radius: 12px; cursor: pointer; width: 100%;
-        }
-        @keyframes pulse {
-            0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); }
-        }
+    /* アプリ全体を画面ぴったりに収める縦並びFlexコンテナ */
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        text-align: center;
+        background: #f4f6f9;
+        color: #333;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    /* 上部タブバー（固定高） */
+    .tab-bar {
+        flex: 0 0 auto;
+        display: flex; 
+        background: #ffffff; 
+        border-bottom: 2px solid #e0e0e0;
+        position: sticky; 
+        top: 0; 
+        z-index: 1000; 
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        overflow-x: auto; 
+        white-space: nowrap;
+    }
+    .tab-item {
+        flex: 1; 
+        min-width: 75px; 
+        padding: 12px 5px; 
+        font-size: 13px; 
+        font-weight: bold; 
+        color: #666;
+        background: none; 
+        border: none; 
+        border-bottom: 3px solid transparent; 
+        border-radius: 0;
+        cursor: pointer; 
+        margin: 0; 
+        box-shadow: none !important; 
+        transition: all 0.2s;
+    }
+    .tab-item:hover { transform: none; background: #f8f9fa; }
+    .tab-item:active { transform: none; }
+    .tab-item.active { color: #00aa44; border-bottom-color: #00aa44; background: #f0fff4; }
 
-        #instruction-text { font-size: 14px; color: #555; margin: 8px 0; font-weight: bold; }
+    /* メインコンテンツエリア：画面の残り高さを一杯に使い、内部で縦並びにする */
+    .container { 
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 12px; 
+        max-width: 500px; 
+        width: 100%;
+        margin: 0 auto; 
+        overflow: hidden; /* 子要素の高さ調整を有効化 */
+    }
 
-        #interactive.viewport {
-            width: 100%; aspect-ratio: 16 / 9; height: auto;
-            margin: 0 auto; background: #000; position: relative; overflow: hidden; border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }        
+    #start-audio-btn {
+        flex: 0 0 auto;
+        background: #ffcc00; color: #333; font-weight: bold; border: 2px solid #ff9900;
+        padding: 12px 20px; font-size: 16px; margin: 0 0 10px 0; animation: pulse 1.5s infinite;
+        border-radius: 12px; cursor: pointer; width: 100%;
+    }
+    @keyframes pulse {
+        0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); }
+    }
 
-        #interactive.viewport video { width: 100%; height: 100%; object-fit: cover; }
+    #instruction-text { 
+        flex: 0 0 auto;
+        font-size: 14px; color: #555; margin: 0 0 8px 0; font-weight: bold; 
+    }
 
-        .scan-area-guide {
-            position: absolute; top: 20%; left: 10%; width: 80%; height: 60%;
-            border: 3px solid #00ff66; box-sizing: border-box; box-shadow: 0 0 15px rgba(0,255,102,0.8), inset 0 0 15px rgba(0,255,102,0.3);
-            z-index: 10; overflow: hidden; display: flex; justify-content: center; align-items: center;
-            pointer-events: none; border-radius: 8px;
-        }
+    /* カメラビューポート */
+    #interactive.viewport {
+        flex: 0 0 auto;
+        width: 100%; aspect-ratio: 16 / 9; height: auto;
+        margin: 0 auto; background: #000; position: relative; overflow: hidden; border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }        
 
-        .scan-area-guide.ocr-mode{ top: 30%; left: 10%; width: 80%; height: 40%; }
+    #interactive.viewport video { width: 100%; height: 100%; object-fit: cover; }
 
-        #scan-result{
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-            width: 100%; text-align: center; font-size: 90px; font-weight: bold; color: #fff;
-            text-shadow: 0 0 10px #000, 0 0 20px #000; display: none; z-index: 100; pointer-events: none;
-        }
+    .scan-area-guide {
+        position: absolute; top: 20%; left: 10%; width: 80%; height: 60%;
+        border: 3px solid #00ff66; box-sizing: border-box; box-shadow: 0 0 15px rgba(0,255,102,0.8), inset 0 0 15px rgba(0,255,102,0.3);
+        z-index: 10; overflow: hidden; display: flex; justify-content: center; align-items: center;
+        pointer-events: none; border-radius: 8px;
+    }
 
-        #scan-result.ok{ display: block; color: #00ff66; }
-        #scan-result.ng{ display: block; color: #ff2222; }
+    .scan-area-guide.ocr-mode{ top: 30%; left: 10%; width: 80%; height: 40%; }
 
-        .scan-area-guide::after{
-            content: ''; position: absolute; left: 0; width: 100%; height: 30px;
-            animation: scanLine 1.8s ease-in-out infinite alternate;
-        }
+    #scan-result{
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+        width: 100%; text-align: center; font-size: 90px; font-weight: bold; color: #fff;
+        text-shadow: 0 0 10px #000, 0 0 20px #000; display: none; z-index: 100; pointer-events: none;
+    }
 
-        @keyframes scanLine {
-            0% { top: -30px; background: linear-gradient(to bottom, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%); }
-            100% { top: 100%; background: linear-gradient(to top, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%); }
-        }
+    #scan-result.ok{ display: block; color: #00ff66; }
+    #scan-result.ng{ display: block; color: #ff2222; }
 
-        .scan-area-guide.ng { border-color: #ff0000; box-shadow: 0 0 15px rgba(255,0,0,0.8); }
+    .scan-area-guide::after{
+        content: ''; position: absolute; left: 0; width: 100%; height: 30px;
+        animation: scanLine 1.8s ease-in-out infinite alternate;
+    }
 
-        .result-box { display: flex; justify-content: space-between; margin: 12px 0; gap: 10px; }
+    @keyframes scanLine {
+        0% { top: -30px; background: linear-gradient(to bottom, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%); }
+        100% { top: 100%; background: linear-gradient(to top, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%); }
+    }
 
-        .code-display {
-            background: white; padding: 10px; border-radius: 10px; flex: 1;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.06); border: 2px solid #e2e8f0;
-            transition: all 0.2s ease;
-        }        
+    .scan-area-guide.ng { border-color: #ff0000; box-shadow: 0 0 15px rgba(255,0,0,0.8); }
 
-        .code-display h3 { margin: 0 0 6px 0; font-size: 12px; color: #888; text-transform: uppercase; }
-        .code-id { font-size: 15px; font-weight: bold; color: #333; text-align: center; word-break: break-all; }
-        .code-name { font-size: 16px; font-weight: bold; color: #007aff; margin-top: 2px; min-height: 24px; word-break: break-all; text-align: center; }
-        .code-extra { font-size: 13px; font-weight: bold; color: #555; margin-top: 2px; text-align: center; word-break: break-all; }
+    /* スキャン結果表示エリア */
+    .result-box { 
+        flex: 0 0 auto;
+        display: flex; justify-content: space-between; margin: 10px 0; gap: 10px; 
+    }
 
-        .code-display.filled{ background: #fff9d6; border-color: #e6b800; }
-        .code-display.match { background: #d4edda; border-color: #28a745; }
-        .code-display.mismatch { background: #f8d7da; border-color: #dc3545; }
+    .code-display {
+        background: white; padding: 10px; border-radius: 10px; flex: 1;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.06); border: 2px solid #e2e8f0;
+        transition: all 0.2s ease;
+    }        
 
-        button.action-btn {
-            width: 100%; padding: 12px; font-size: 18px; font-weight: bold; margin: 6px 0; cursor: pointer;
-            color: #ffffff; border: none; border-radius: 12px;
-            background: linear-gradient(to bottom, #007aff, #0056b3);
-            box-shadow: 0 4px 0 #003d80; transition: .15s;
-        }
-        button.action-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #003d80; }
+    .code-display h3 { margin: 0 0 6px 0; font-size: 12px; color: #888; text-transform: uppercase; }
+    .code-id { font-size: 15px; font-weight: bold; color: #333; text-align: center; word-break: break-all; }
+    .code-name { font-size: 16px; font-weight: bold; color: #007aff; margin-top: 2px; min-height: 24px; word-break: break-all; text-align: center; }
+    .code-extra { font-size: 13px; font-weight: bold; color: #555; margin-top: 2px; text-align: center; word-break: break-all; }
 
-        #ocr-read-btn {
-            display: none; width: 100%; padding: 12px; margin: 8px 0; font-size: 18px; font-weight: bold;
-            background: linear-gradient(to bottom, #4CAF50, #2E7D32); color: white; border: none; border-radius: 12px;
-            box-shadow: 0 4px 0 #1B5E20; cursor: pointer;
-        }
+    .code-display.filled{ background: #fff9d6; border-color: #e6b800; }
+    .code-display.match { background: #d4edda; border-color: #28a745; }
+    .code-display.mismatch { background: #f8d7da; border-color: #dc3545; }
 
-        .history-card {
-            background: #ffffff; border-radius: 12px; padding: 12px; margin-top: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06); text-align: left; border: 1px solid #e2e8f0;
-        }
-        .history-card-header {
-            font-size: 14px; font-weight: bold; color: #444; border-bottom: 1px solid #eee;
-            padding-bottom: 6px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
-        }
-        #history-area { max-height: 180px; overflow-y: auto; font-size: 13px; line-height: 1.5; }
-        .history-item { padding: 6px 8px; margin-bottom: 6px; border-radius: 6px; font-size: 12px; }
-        .history-item.ok { background: #eaf8ea; border-left: 4px solid #28a745; }
-        .history-item.ng { background: #fdeaea; border-left: 4px solid #dc3545; }
+    /* 各種操作ボタン（固定高） */
+    button.action-btn {
+        flex: 0 0 auto;
+        width: 100%; padding: 12px; font-size: 18px; font-weight: bold; margin: 4px 0 8px 0; cursor: pointer;
+        color: #ffffff; border: none; border-radius: 12px;
+        background: linear-gradient(to bottom, #007aff, #0056b3);
+        box-shadow: 0 4px 0 #003d80; transition: .15s;
+    }
+    button.action-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #003d80; }
 
-        .modal-overlay {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.5); justify-content: center; align-items: center;
-        }
-        .modal-box {
-            background: #fff; padding: 20px; border-radius: 12px; max-width: 90%; width: 340px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2); text-align: center;
-        }
-        .modal-buttons { margin-top: 15px; display: flex; justify-content: center; gap: 10px; }
-        .modal-btn { padding: 8px 16px; font-size: 14px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; }
-        .modal-btn-ok { background: #007aff; color: #fff; }
-        .modal-btn-cancel { background: #888; color: #fff; }
+    #ocr-read-btn {
+        flex: 0 0 auto;
+        display: none; width: 100%; padding: 12px; margin: 4px 0 8px 0; font-size: 18px; font-weight: bold;
+        background: linear-gradient(to bottom, #4CAF50, #2E7D32); color: white; border: none; border-radius: 12px;
+        box-shadow: 0 4px 0 #1B5E20; cursor: pointer;
+    }
 
-        #master-csv-modal { z-index: 10000; }
-        #custom-modal-overlay { z-index: 20000; }
+    /* ★履歴カード全体（あまりの縦スペースをすべて使って自動伸縮）★ */
+    .history-card {
+        flex: 1; /* iPad等で余った高さをすべて占有 */
+        display: flex;
+        flex-direction: column;
+        background: #ffffff; border-radius: 12px; padding: 12px; margin-top: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06); text-align: left; border: 1px solid #e2e8f0;
+        min-height: 100px; /* 最小高さを確保 */
+        overflow: hidden;
+    }
+    
+    .history-card-header {
+        flex: 0 0 auto;
+        font-size: 14px; font-weight: bold; color: #444; border-bottom: 1px solid #eee;
+        padding-bottom: 6px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
+    }
 
-        .csv-upload-box {
-            text-align: left; background: #f8f9fa; border: 2px dashed #007aff; border-radius: 8px; padding: 12px; margin-top: 10px;
-        }
-        .csv-status { font-size: 12px; font-weight: bold; margin-top: 6px; color: #007aff; }
+    /* ★履歴スクロールエリア（親の高さに合わせて可変＆内部でスクロール）★ */
+    #history-area { 
+        flex: 1;
+        height: 100%;
+        max-height: none; /* 固定値制限を解除 */
+        overflow-y: auto; 
+        -webkit-overflow-scrolling: touch; /* iOSスルスルスクロール */
+        font-size: 13px; line-height: 1.5; 
+    }
 
-        .flying-tile {
-            position: fixed; z-index: 9999; pointer-events: none; background: transparent !important;
-            color: #00ff66; font-size: 24px; font-weight: bold; white-space: nowrap;
-            text-shadow: 0 0 10px rgba(0, 255, 102, 0.9);
-            transition: all 0.65s cubic-bezier(0.25, 1, 0.5, 1);
-        }
-    </style>
-</head>
+    .history-item { padding: 6px 8px; margin-bottom: 6px; border-radius: 6px; font-size: 12px; }
+    .history-item.ok { background: #eaf8ea; border-left: 4px solid #28a745; }
+    .history-item.ng { background: #fdeaea; border-left: 4px solid #dc3545; }
+
+    /* モーダル表示群 */
+    .modal-overlay {
+        display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.5); justify-content: center; align-items: center;
+    }
+    .modal-box {
+        background: #fff; padding: 20px; border-radius: 12px; max-width: 90%; width: 340px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2); text-align: center;
+    }
+    .modal-buttons { margin-top: 15px; display: flex; justify-content: center; gap: 10px; }
+    .modal-btn { padding: 8px 16px; font-size: 14px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; }
+    .modal-btn-ok { background: #007aff; color: #fff; }
+    .modal-btn-cancel { background: #888; color: #fff; }
+
+    #master-csv-modal { z-index: 10000; }
+    #custom-modal-overlay { z-index: 20000; }
+
+    .csv-upload-box {
+        text-align: left; background: #f8f9fa; border: 2px dashed #007aff; border-radius: 8px; padding: 12px; margin-top: 10px;
+    }
+    .csv-status { font-size: 12px; font-weight: bold; margin-top: 6px; color: #007aff; }
+
+    .flying-tile {
+        position: fixed; z-index: 9999; pointer-events: none; background: transparent !important;
+        color: #00ff66; font-size: 24px; font-weight: bold; white-space: nowrap;
+        text-shadow: 0 0 10px rgba(0, 255, 102, 0.9);
+        transition: all 0.65s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+</style></head>
 
 <body>
 
