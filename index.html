@@ -264,6 +264,12 @@
         boo: new Audio('boo.mp3')
     };
 
+    // --- iOS / iPad Safari 用の高さ調整 (100vh問題対策) ---
+    function setViewportHeight() {
+        const vh = window.innerHeight * 0.01;
+        document.documentElement.style.setProperty('--vh', `${vh}px`);
+    }
+
     // 再生関数（無音カット・長さ指定対応）
     function playAudio(key, delay = 0, startTime = 0, duration = null) {
         setTimeout(() => {
@@ -428,6 +434,11 @@
     }
 
     document.addEventListener("DOMContentLoaded", () => {
+        // iPhone/iPad用の高さ調整を初期実行＆イベント登録
+        setViewportHeight();
+        window.addEventListener('resize', setViewportHeight);
+        window.addEventListener('orientationchange', setViewportHeight);
+
         guide = document.querySelector(".scan-area-guide");
         scanResult = document.getElementById("scan-result");
         box1 = document.getElementById("box1");
@@ -619,8 +630,11 @@
         }
 
         const now = new Date();
+        const dateStr = `${now.getFullYear()}/${(now.getMonth()+1).toString().padStart(2,'0')}/${now.getDate().toString().padStart(2,'0')}`;
         const timeStr = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+        
         scanHistory.unshift({
+            date: dateStr,
             time: timeStr,
             code1: code1,
             code2: code2,
@@ -662,7 +676,7 @@
         }
         historyArea.innerHTML = scanHistory.map(item => `
             <div class="history-item ${item.result === '一致' ? 'ok' : 'ng'}">
-                <strong>[${item.time}] ${item.result}</strong><br>
+                <strong>[${item.date || '-'} ${item.time}] ${item.result}</strong><br>
                 1: ${item.code1} / 2: ${item.code2}
             </div>
         `).join("");
@@ -740,9 +754,9 @@
 
             const confirmed = await showAppConfirm("照合履歴をCSV出力しますか？");
             if (confirmed) {
-                let csvContent = "data:text/csv;charset=utf-8,時間,結果,1つ目,2つ目\n";
+                let csvContent = "data:text/csv;charset=utf-8,日付,時間,結果,1つ目,2つ目\n";
                 scanHistory.forEach(row => {
-                    csvContent += `${row.time},${row.result},"${row.code1}","${row.code2}"\n`;
+                    csvContent += `${row.date || ''},${row.time},${row.result},"${row.code1}","${row.code2}"\n`;
                 });
                 const encodedUri = encodeURI(csvContent);
                 const link = document.createElement("a");
