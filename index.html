@@ -251,33 +251,49 @@
     let masterDataMap = {};
     let scanHistory = [];
 
-    // 音声オブジェクトの固定保持（自動再生ブロック対策）
+    // 自動リロード監視用変数
+    let lastVideoTime = -1;
+    let freezeCheckInterval = null;
+    let inactivityTimer = null;
+    const INACTIVITY_LIMIT_MS = 5 * 60 * 1000; // 無操作5分で自動リロード（ミリ秒単位）
+
+    // 音声オブジェクトの固定保持
     const audioMap = {
         scan: new Audio('scan.mp3'),
         pingpong: new Audio('pingpong.mp3'),
         boo: new Audio('boo.mp3')
     };
 
-    // 再利用可能な再生関数
-    function playAudio(key, delay = 0) {
+    // 再生関数（無音カット・長さ指定対応）
+    function playAudio(key, delay = 0, startTime = 0, duration = null) {
         setTimeout(() => {
             const audio = audioMap[key];
             if (audio) {
-                audio.currentTime = 0; // 先頭に戻す
-                audio.play().catch(e => console.warn("Audio play blocked:", e));
+                audio.currentTime = startTime;
+                const playPromise = audio.play();
+
+                if (playPromise !== undefined) {
+                    playPromise.catch(e => console.warn("Audio play blocked:", e));
+                }
+
+                if (duration) {
+                    setTimeout(() => {
+                        audio.pause();
+                        audio.currentTime = 0;
+                    }, duration);
+                }
             }
         }, delay);
     }
 
-    // ユーザーのアクションで全音声を解放・準備する関数
     function unlockAudioContext() {
         Object.keys(audioMap).forEach(key => {
             const a = audioMap[key];
-            a.volume = 0.01; // ほぼ無音
+            a.volume = 0.01;
             a.play().then(() => {
                 a.pause();
                 a.currentTime = 0;
-                a.volume = 1.0; // 音量を戻す
+                a.volume = 1.0;
             }).catch(() => {});
         });
     }
@@ -360,6 +376,57 @@
         });
     }
 
+    // --- 自動リロード監視処理 ---
+    function startCameraWatchdog() {
+        if (freezeCheckInterval) clearInterval(freezeCheckInterval);
+        
+        let sameTimeCount = 0;
+        
+        // 2秒ごとにカメラ映像が進んでいるか確認
+        freezeCheckInterval = setInterval(() => {
+            if (videoElement && !videoElement.paused && !videoElement.ended) {
+                if (videoElement.currentTime === lastVideoTime && videoElement.currentTime > 0) {
+                    sameTimeCount++;
+                    // 3回連続（計6秒間）映像が停止していたらリロード
+                    if (sameTimeCount >= 3) {
+                        console.warn("Camera video frozen. Reloading page...");
+                        location.reload();
+                    }
+                } else {
+                    sameTimeCount = 0;
+                    lastVideoTime = videoElement.currentTime;
+                }
+            }
+        }, 2000);
+    }
+
+    function resetInactivityTimer() {
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+        // 無操作状態が5分間続いたらリロード
+        inactivityTimer = setTimeout(() => {
+            console.warn("Inactivity timeout reached. Reloading page...");
+            location.reload();
+        }, INACTIVITY_LIMIT_MS);
+    }
+
+    function setupAutoReloadWatchdog() {
+        // タップ、スクロール、キー操作があったら無操作タイマーをリセット
+        ['touchstart', 'click', 'mousemove', 'scroll'].forEach(evt => {
+            document.addEventListener(evt, resetInactivityTimer, { passive: true });
+        });
+        resetInactivityTimer();
+
+        // 画面の表示/非表示（タブ切り替えやバックグラウンド移動）切り替え時の復帰処理
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") {
+                // バックグラウンドから戻った際、動画が停止していたら即時リロード
+                if (videoElement && (videoElement.paused || videoElement.currentTime === lastVideoTime)) {
+                    location.reload();
+                }
+            }
+        });
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
         guide = document.querySelector(".scan-area-guide");
         scanResult = document.getElementById("scan-result");
@@ -401,11 +468,15 @@
         updateHistoryUI();
         setupEventListeners();
         setupTabs();
+        setupAutoReloadWatchdog();
     });
 
     function stopCamera() {
         if (codeReader) {
             try { codeReader.reset(); } catch (e) {}
+        }
+        if (freezeCheckInterval) {
+            clearInterval(freezeCheckInterval);
         }
     }
 
@@ -452,6 +523,8 @@
                     }
                 }
             });
+            // カメラ起動後に映像ストップ（フリーズ）の監視を開始
+            startCameraWatchdog();
         } catch (err) {
             console.error(err);
             showAppAlert("カメラの起動に失敗しました。カメラ権限を確認してください。");
@@ -487,8 +560,7 @@
             code1 = codeStr;
             setCode(1, codeStr);
             
-            // 1回目の読み取り音
-            playAudio('scan');
+            playAudio('scan', 0);
             
             setTimeout(() => { isScanning = true; }, 1200);
         } else if (!code2) {
@@ -497,7 +569,6 @@
             code2 = codeStr;
             setCode(2, codeStr);
             
-            // 2回目の読み取り音と、少し遅らせての判定音
             playAudio('scan', 0);
             checkMatch();
         }
@@ -528,36 +599,36 @@
     }
 
     function checkMatch() {
-            const isMatch = (code1 === code2);
+        const isMatch = (code1 === code2);
         
-            if (isMatch) {
-                scanResult.textContent = "OK";
-                scanResult.className = "ok";
-                box1.classList.add("match");
-                box2.classList.add("match");
-                // 2回目のピッから少し間隔を空けて（500ms）OK音を鳴らす
-                playAudio('pingpong', 500);
-            } else {
-                scanResult.textContent = "NG";
-                scanResult.className = "ng";
-                guide.classList.add("ng");
-                box1.classList.add("mismatch");
-                box2.classList.add("mismatch");
-                // 2回目のピッから少し間隔を空けて（500ms）NG音を鳴らす
-                playAudio('boo', 500);
-            }
-
-            const now = new Date();
-            const timeStr = `${now.getHours().toString().padStart(2,'0')}:    ${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
-            scanHistory.unshift({
-                time: timeStr,
-                code1: code1,
-                code2: code2,
-                result: isMatch ? "一致" : "不一致"
-            });
-            localStorage.setItem("scanHistory", JSON.stringify(scanHistory));
-            updateHistoryUI();
+        if (isMatch) {
+            scanResult.textContent = "OK";
+            scanResult.className = "ok";
+            box1.classList.add("match");
+            box2.classList.add("match");
+            
+            playAudio('pingpong', 300, 0.15); 
+        } else {
+            scanResult.textContent = "NG";
+            scanResult.className = "ng";
+            guide.classList.add("ng");
+            box1.classList.add("mismatch");
+            box2.classList.add("mismatch");
+            
+            playAudio('boo', 300, 0);
         }
+
+        const now = new Date();
+        const timeStr = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+        scanHistory.unshift({
+            time: timeStr,
+            code1: code1,
+            code2: code2,
+            result: isMatch ? "一致" : "不一致"
+        });
+        localStorage.setItem("scanHistory", JSON.stringify(scanHistory));
+        updateHistoryUI();
+    }
 
     function resetScan() {
         code1 = null;
@@ -631,9 +702,17 @@
         const tabHistoryClear = document.getElementById("tab-history-clear");
         const tabMasterCsv = document.getElementById("tab-master-csv");
 
+        function flashTab(tabElem) {
+            tabElem.classList.add("active");
+            setTimeout(() => {
+                tabElem.classList.remove("active");
+            }, 300);
+        }
+
         tabBarcode.addEventListener("click", () => {
             tabBarcode.classList.add("active");
             tabOcr.classList.remove("active");
+            tabMasterCsv.classList.remove("active");
             currentMode = "barcode";
             guide.classList.remove("ocr-mode");
             ocrReadBtn.style.display = "none";
@@ -644,6 +723,7 @@
         tabOcr.addEventListener("click", () => {
             tabOcr.classList.add("active");
             tabBarcode.classList.remove("active");
+            tabMasterCsv.classList.remove("active");
             currentMode = "ocr";
             guide.classList.add("ocr-mode");
             ocrReadBtn.style.display = "block";
@@ -652,6 +732,7 @@
         });
 
         tabCsvExport.addEventListener("click", async () => {
+            flashTab(tabCsvExport);
             if (scanHistory.length === 0) {
                 await showAppAlert("出力する履歴がありません。");
                 return;
@@ -674,6 +755,7 @@
         });
 
         tabHistoryClear.addEventListener("click", async () => {
+            flashTab(tabHistoryClear);
             const confirmed = await showAppConfirm("履歴を全削除しますか？");
             if (confirmed) {
                 scanHistory = [];
@@ -683,10 +765,12 @@
         });
 
         tabMasterCsv.addEventListener("click", () => {
+            tabMasterCsv.classList.add("active");
             document.getElementById("master-csv-modal").style.display = "flex";
         });
 
         document.getElementById("close-master-modal-btn").addEventListener("click", () => {
+            tabMasterCsv.classList.remove("active");
             document.getElementById("master-csv-modal").style.display = "none";
         });
     }
