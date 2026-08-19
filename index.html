@@ -328,37 +328,37 @@
     let masterDataMap = {};
     let scanHistory = [];
 
-    // 日別集計・カウント用変数
+    // 日別集計・過去全履歴用変数
     let dailyOkCount = 0;
     let dailyNgCount = 0;
     let dailySummaryList = [];
+    let pastScanHistory = []; // 過去の全詳細履歴
     let currentTodayStr = "";
 
     // 自動リロード監視用変数
     let lastVideoTime = -1;
     let freezeCheckInterval = null;
     let inactivityTimer = null;
-    const INACTIVITY_LIMIT_MS = 5 * 60 * 1000; // 無操作5分で自動リロード（ミリ秒単位）
+    const INACTIVITY_LIMIT_MS = 5 * 60 * 1000;
 
-    // 音声オブジェクトの固定保持
+    // 音声オブジェクト
     const audioMap = {
         scan: new Audio('scan.mp3'),
         pingpong: new Audio('pingpong.mp3'),
         boo: new Audio('boo.mp3')
     };
 
-    // 今日の日付文字列（YYYY/MM/DD）を取得
     function getTodayString() {
         const now = new Date();
         return `${now.getFullYear()}/${(now.getMonth()+1).toString().padStart(2,'0')}/${now.getDate().toString().padStart(2,'0')}`;
     }
 
-    // 日付変更をチェックし、翌日であれば前日実績を日別リストへ移行する
+    // 日付変更チェック＆過去データの保持処理
     function checkAndRollDailySummary() {
         const today = getTodayString();
         
         if (currentTodayStr && currentTodayStr !== today) {
-            // 前日分に実績があれば集計リストに追加
+            // 前日分に実績があれば日別集計に追加
             if (dailyOkCount > 0 || dailyNgCount > 0) {
                 dailySummaryList.unshift({
                     date: currentTodayStr,
@@ -367,12 +367,18 @@
                 });
                 localStorage.setItem("dailySummaryList", JSON.stringify(dailySummaryList));
             }
-            // 本日分をクリア
+
+            // 前日までの詳細履歴を過去履歴に統合して保存
+            if (scanHistory.length > 0) {
+                pastScanHistory = [...scanHistory, ...pastScanHistory];
+                localStorage.setItem("pastScanHistory", JSON.stringify(pastScanHistory));
+            }
+
+            // 本日分をリセット
             dailyOkCount = 0;
             dailyNgCount = 0;
             localStorage.setItem("dailyOkCount", 0);
             localStorage.setItem("dailyNgCount", 0);
-            // 本日の個別照合履歴も日付変更時にクリア
             scanHistory = [];
             localStorage.removeItem("scanHistory");
         }
@@ -381,13 +387,11 @@
         localStorage.setItem("lastScanDate", currentTodayStr);
     }
 
-    // --- iOS / iPad Safari 用の高さ調整 (100vh問題対策) ---
     function setViewportHeight() {
         const vh = window.innerHeight * 0.01;
         document.documentElement.style.setProperty('--vh', `${vh}px`);
     }
 
-    // 再生関数（無音カット・長さ指定対応）
     function playAudio(key, delay = 0, startTime = 0, duration = null) {
         setTimeout(() => {
             const audio = audioMap[key];
@@ -499,10 +503,8 @@
         });
     }
 
-    // --- 自動リロード監視処理 ---
     function startCameraWatchdog() {
         if (freezeCheckInterval) clearInterval(freezeCheckInterval);
-        
         let sameTimeCount = 0;
         
         freezeCheckInterval = setInterval(() => {
@@ -568,7 +570,7 @@
         clearCsvBtn = document.getElementById("clear-csv-btn");
         videoElement = document.getElementById("video-element");
 
-        // 集計データ・日別データの復元
+        // データ復元
         currentTodayStr = localStorage.getItem("lastScanDate") || getTodayString();
         dailyOkCount = parseInt(localStorage.getItem("dailyOkCount") || "0", 10);
         dailyNgCount = parseInt(localStorage.getItem("dailyNgCount") || "0", 10);
@@ -578,7 +580,11 @@
             try { dailySummaryList = JSON.parse(savedSummary); } catch(e){}
         }
 
-        // 日付をまたいでいるかチェック
+        const savedPastHistory = localStorage.getItem("pastScanHistory");
+        if (savedPastHistory) {
+            try { pastScanHistory = JSON.parse(savedPastHistory); } catch(e){}
+        }
+
         checkAndRollDailySummary();
 
         const savedMaster = localStorage.getItem("masterDataMap");
@@ -795,20 +801,20 @@
         scanResult.textContent = "";
     }
 
-    // ★修正: タイトル文言（「■ 本日の照合履歴」等）を排除し、直接データ表示から開始
+    // 画面表示更新（1行化・過去リスト表示）
     function updateHistoryUI() {
         if (!historyArea) return;
 
+        // iPhoneの小さな画面でも確実に1行に収まるスタイリング
         let html = `
-            <div style="background:#f0f4f8; padding:8px; border-radius:8px; margin-bottom:8px; font-weight:bold; text-align:center; border:1px solid #cbd5e1; font-size:13px;">
-                【本日 (${getTodayString()})】
-                <span style="color:#28a745; margin-left:8px; margin-right:12px;">⭕ OK: ${dailyOkCount}件</span>
-                <span style="color:#dc3545;">❌ NG: ${dailyNgCount}件</span>
+            <div style="background:#f0f4f8; padding:6px 4px; border-radius:6px; margin-bottom:8px; font-weight:bold; text-align:center; border:1px solid #cbd5e1; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                【本日】<span style="color:#28a745; margin:0 4px;">⭕OK:${dailyOkCount}</span> <span style="color:#dc3545; margin:0 4px;">❌NG:${dailyNgCount}</span> <span style="color:#666; font-size:10px;">(${getTodayString()})</span>
             </div>
         `;
 
+        // 1. 本日の詳細履歴
         if (scanHistory.length === 0) {
-            html += "<div style='color:#888; text-align:center; padding:6px; font-size:12px;'>（本日の履歴なし）</div>";
+            html += "<div style='color:#888; text-align:center; padding:4px; font-size:11px;'>（本日の履歴なし）</div>";
         } else {
             html += scanHistory.map(item => `
                 <div class="history-item ${item.result === '一致' ? 'ok' : 'ng'}">
@@ -818,12 +824,24 @@
             `).join("");
         }
 
+        // 2. 過去の日別集計
         if (dailySummaryList.length > 0) {
-            html += `<div style="font-weight:bold; margin:12px 0 4px 0; color:#555; border-top:1px dashed #ccc; padding-top:8px; font-size:12px;">■ 過去の日別集計</div>`;
+            html += `<div style="font-weight:bold; margin:10px 0 4px 0; color:#555; border-top:1px dashed #ccc; padding-top:6px; font-size:11px;">■ 過去の日別集計</div>`;
             html += dailySummaryList.map(sum => `
-                <div style="background:#fff; border:1px solid #e2e8f0; padding:6px 10px; margin-bottom:4px; border-radius:6px; display:flex; justify-content:space-between; font-size:12px;">
+                <div style="background:#fff; border:1px solid #e2e8f0; padding:4px 8px; margin-bottom:3px; border-radius:4px; display:flex; justify-content:space-between; font-size:11px;">
                     <span>📅 <strong>${sum.date}</strong></span>
-                    <span>⭕ OK: <strong>${sum.ok}</strong> / ❌ NG: <strong>${sum.ng}</strong></span>
+                    <span>⭕ <strong>${sum.ok}</strong> / ❌ <strong>${sum.ng}</strong></span>
+                </div>
+            `).join("");
+        }
+
+        // 3. 過去の全リスト（過去の日別集計の下に表示）
+        if (pastScanHistory.length > 0) {
+            html += `<div style="font-weight:bold; margin:10px 0 4px 0; color:#555; border-top:1px dashed #ccc; padding-top:6px; font-size:11px;">■ 過去の照合リスト</div>`;
+            html += pastScanHistory.map(item => `
+                <div class="history-item ${item.result === '一致' ? 'ok' : 'ng'}" style="opacity:0.85;">
+                    <strong>[${item.date} ${item.time}] ${item.result}</strong><br>
+                    1: ${item.code1} / 2: ${item.code2}
                 </div>
             `).join("");
         }
@@ -894,17 +912,20 @@
             resetScan();
         });
 
+        // CSV出力（本日分＋過去分をまとめて出力）
         tabCsvExport.addEventListener("click", async () => {
             flashTab(tabCsvExport);
-            if (scanHistory.length === 0) {
+            const allHistory = [...scanHistory, ...pastScanHistory];
+            
+            if (allHistory.length === 0) {
                 await showAppAlert("出力する履歴がありません。");
                 return;
             }
 
-            const confirmed = await showAppConfirm("照合履歴をCSV出力しますか？");
+            const confirmed = await showAppConfirm("照合履歴（全データ）をCSV出力しますか？");
             if (confirmed) {
                 let csvContent = "\uFEFF日付,時間,結果,1つ目,2つ目\n";
-                scanHistory.forEach(row => {
+                allHistory.forEach(row => {
                     const c1 = (row.code1 || "").replace(/"/g, '""');
                     const c2 = (row.code2 || "").replace(/"/g, '""');
                     csvContent += `${row.date || ''},${row.time},${row.result},"${c1}","${c2}"\n`;
@@ -929,14 +950,16 @@
 
         tabHistoryClear.addEventListener("click", async () => {
             flashTab(tabHistoryClear);
-            const confirmed = await showAppConfirm("すべての実績・履歴を全削除しますか？");
+            const confirmed = await showAppConfirm("すべての実績・過去履歴を全削除しますか？");
             if (confirmed) {
                 scanHistory = [];
+                pastScanHistory = [];
                 dailySummaryList = [];
                 dailyOkCount = 0;
                 dailyNgCount = 0;
 
                 localStorage.removeItem("scanHistory");
+                localStorage.removeItem("pastScanHistory");
                 localStorage.removeItem("dailySummaryList");
                 localStorage.removeItem("dailyOkCount");
                 localStorage.removeItem("dailyNgCount");
