@@ -276,10 +276,7 @@
 
         <button id="reset-btn" class="action-btn">対象クリア</button>
 
-        <div class="history-card">
-            <div class="history-card-header">
-                <span>📋 照合履歴</span>
-            </div>
+　　　　<div class="history-card">
             <div id="history-area"></div>
         </div>
     </div>
@@ -331,6 +328,12 @@
     let masterDataMap = {};
     let scanHistory = [];
 
+    // 日別集計・カウント用変数
+    let dailyOkCount = 0;
+    let dailyNgCount = 0;
+    let dailySummaryList = [];
+    let currentTodayStr = "";
+
     // 自動リロード監視用変数
     let lastVideoTime = -1;
     let freezeCheckInterval = null;
@@ -343,6 +346,40 @@
         pingpong: new Audio('pingpong.mp3'),
         boo: new Audio('boo.mp3')
     };
+
+    // 今日の日付文字列（YYYY/MM/DD）を取得
+    function getTodayString() {
+        const now = new Date();
+        return `${now.getFullYear()}/${(now.getMonth()+1).toString().padStart(2,'0')}/${now.getDate().toString().padStart(2,'0')}`;
+    }
+
+    // 日付変更をチェックし、翌日であれば前日実績を日別リストへ移行する
+    function checkAndRollDailySummary() {
+        const today = getTodayString();
+        
+        if (currentTodayStr && currentTodayStr !== today) {
+            // 前日分に実績があれば集計リストに追加
+            if (dailyOkCount > 0 || dailyNgCount > 0) {
+                dailySummaryList.unshift({
+                    date: currentTodayStr,
+                    ok: dailyOkCount,
+                    ng: dailyNgCount
+                });
+                localStorage.setItem("dailySummaryList", JSON.stringify(dailySummaryList));
+            }
+            // 本日分をクリア
+            dailyOkCount = 0;
+            dailyNgCount = 0;
+            localStorage.setItem("dailyOkCount", 0);
+            localStorage.setItem("dailyNgCount", 0);
+            // 本日の個別照合履歴も日付変更時にクリア
+            scanHistory = [];
+            localStorage.removeItem("scanHistory");
+        }
+
+        currentTodayStr = today;
+        localStorage.setItem("lastScanDate", currentTodayStr);
+    }
 
     // --- iOS / iPad Safari 用の高さ調整 (100vh問題対策) ---
     function setViewportHeight() {
@@ -468,12 +505,10 @@
         
         let sameTimeCount = 0;
         
-        // 2秒ごとにカメラ映像が進んでいるか確認
         freezeCheckInterval = setInterval(() => {
             if (videoElement && !videoElement.paused && !videoElement.ended) {
                 if (videoElement.currentTime === lastVideoTime && videoElement.currentTime > 0) {
                     sameTimeCount++;
-                    // 3回連続（計6秒間）映像が停止していたらリロード
                     if (sameTimeCount >= 3) {
                         console.warn("Camera video frozen. Reloading page...");
                         location.reload();
@@ -488,7 +523,6 @@
 
     function resetInactivityTimer() {
         if (inactivityTimer) clearTimeout(inactivityTimer);
-        // 無操作状態が5分間続いたらリロード
         inactivityTimer = setTimeout(() => {
             console.warn("Inactivity timeout reached. Reloading page...");
             location.reload();
@@ -496,16 +530,13 @@
     }
 
     function setupAutoReloadWatchdog() {
-        // タップ、スクロール、キー操作があったら無操作タイマーをリセット
         ['touchstart', 'click', 'mousemove', 'scroll'].forEach(evt => {
             document.addEventListener(evt, resetInactivityTimer, { passive: true });
         });
         resetInactivityTimer();
 
-        // 画面の表示/非表示（タブ切り替えやバックグラウンド移動）切り替え時の復帰処理
         document.addEventListener("visibilitychange", () => {
             if (document.visibilityState === "visible") {
-                // バックグラウンドから戻った際、動画が停止していたら即時リロード
                 if (videoElement && (videoElement.paused || videoElement.currentTime === lastVideoTime)) {
                     location.reload();
                 }
@@ -514,7 +545,6 @@
     }
 
     document.addEventListener("DOMContentLoaded", () => {
-        // iPhone/iPad用の高さ調整を初期実行＆イベント登録
         setViewportHeight();
         window.addEventListener('resize', setViewportHeight);
         window.addEventListener('orientationchange', setViewportHeight);
@@ -537,6 +567,19 @@
         csvStatus = document.getElementById("csv-status");
         clearCsvBtn = document.getElementById("clear-csv-btn");
         videoElement = document.getElementById("video-element");
+
+        // 集計データ・日別データの復元
+        currentTodayStr = localStorage.getItem("lastScanDate") || getTodayString();
+        dailyOkCount = parseInt(localStorage.getItem("dailyOkCount") || "0", 10);
+        dailyNgCount = parseInt(localStorage.getItem("dailyNgCount") || "0", 10);
+        
+        const savedSummary = localStorage.getItem("dailySummaryList");
+        if (savedSummary) {
+            try { dailySummaryList = JSON.parse(savedSummary); } catch(e){}
+        }
+
+        // 日付をまたいでいるかチェック
+        checkAndRollDailySummary();
 
         const savedMaster = localStorage.getItem("masterDataMap");
         const savedMasterTime = localStorage.getItem("masterDataTime");
@@ -614,7 +657,6 @@
                     }
                 }
             });
-            // カメラ起動後に映像ストップ（フリーズ）の監視を開始
             startCameraWatchdog();
         } catch (err) {
             console.error(err);
@@ -690,6 +732,8 @@
     }
 
     function checkMatch() {
+        checkAndRollDailySummary();
+
         const isMatch = (code1 === code2);
         
         if (isMatch) {
@@ -697,7 +741,7 @@
             scanResult.className = "ok";
             box1.classList.add("match");
             box2.classList.add("match");
-            
+            dailyOkCount++;
             playAudio('pingpong', 500); 
         } else {
             scanResult.textContent = "NG";
@@ -705,9 +749,12 @@
             guide.classList.add("ng");
             box1.classList.add("mismatch");
             box2.classList.add("mismatch");
-            
+            dailyNgCount++;
             playAudio('boo', 500);
         }
+
+        localStorage.setItem("dailyOkCount", dailyOkCount);
+        localStorage.setItem("dailyNgCount", dailyNgCount);
 
         const now = new Date();
         const dateStr = `${now.getFullYear()}/${(now.getMonth()+1).toString().padStart(2,'0')}/${now.getDate().toString().padStart(2,'0')}`;
@@ -748,18 +795,40 @@
         scanResult.textContent = "";
     }
 
+    // ★修正: タイトル文言（「■ 本日の照合履歴」等）を排除し、直接データ表示から開始
     function updateHistoryUI() {
         if (!historyArea) return;
-        if (scanHistory.length === 0) {
-            historyArea.innerHTML = "<div style='color:#888; text-align:center;'>履歴なし</div>";
-            return;
-        }
-        historyArea.innerHTML = scanHistory.map(item => `
-            <div class="history-item ${item.result === '一致' ? 'ok' : 'ng'}">
-                <strong>[${item.date || '-'} ${item.time}] ${item.result}</strong><br>
-                1: ${item.code1} / 2: ${item.code2}
+
+        let html = `
+            <div style="background:#f0f4f8; padding:8px; border-radius:8px; margin-bottom:8px; font-weight:bold; text-align:center; border:1px solid #cbd5e1; font-size:13px;">
+                【本日 (${getTodayString()})】
+                <span style="color:#28a745; margin-left:8px; margin-right:12px;">⭕ OK: ${dailyOkCount}件</span>
+                <span style="color:#dc3545;">❌ NG: ${dailyNgCount}件</span>
             </div>
-        `).join("");
+        `;
+
+        if (scanHistory.length === 0) {
+            html += "<div style='color:#888; text-align:center; padding:6px; font-size:12px;'>（本日の履歴なし）</div>";
+        } else {
+            html += scanHistory.map(item => `
+                <div class="history-item ${item.result === '一致' ? 'ok' : 'ng'}">
+                    <strong>[${item.time}] ${item.result}</strong><br>
+                    1: ${item.code1} / 2: ${item.code2}
+                </div>
+            `).join("");
+        }
+
+        if (dailySummaryList.length > 0) {
+            html += `<div style="font-weight:bold; margin:12px 0 4px 0; color:#555; border-top:1px dashed #ccc; padding-top:8px; font-size:12px;">■ 過去の日別集計</div>`;
+            html += dailySummaryList.map(sum => `
+                <div style="background:#fff; border:1px solid #e2e8f0; padding:6px 10px; margin-bottom:4px; border-radius:6px; display:flex; justify-content:space-between; font-size:12px;">
+                    <span>📅 <strong>${sum.date}</strong></span>
+                    <span>⭕ OK: <strong>${sum.ok}</strong> / ❌ NG: <strong>${sum.ng}</strong></span>
+                </div>
+            `).join("");
+        }
+
+        historyArea.innerHTML = html;
     }
 
     function cropGuideImageForOCR() {
@@ -825,48 +894,53 @@
             resetScan();
         });
 
-tabCsvExport.addEventListener("click", async () => {
-    flashTab(tabCsvExport);
-    if (scanHistory.length === 0) {
-        await showAppAlert("出力する履歴がありません。");
-        return;
-    }
+        tabCsvExport.addEventListener("click", async () => {
+            flashTab(tabCsvExport);
+            if (scanHistory.length === 0) {
+                await showAppAlert("出力する履歴がありません。");
+                return;
+            }
 
-    const confirmed = await showAppConfirm("照合履歴をCSV出力しますか？");
-    if (confirmed) {
-        // UTF-8 (BOM付き) でCSV文字列を作成（Excel等での文字化け防止）
-        let csvContent = "\uFEFF日付,時間,結果,1つ目,2つ目\n";
-        scanHistory.forEach(row => {
-            // ダブルクォーテーションのエスケープ処理
-            const c1 = (row.code1 || "").replace(/"/g, '""');
-            const c2 = (row.code2 || "").replace(/"/g, '""');
-            csvContent += `${row.date || ''},${row.time},${row.result},"${c1}","${c2}"\n`;
+            const confirmed = await showAppConfirm("照合履歴をCSV出力しますか？");
+            if (confirmed) {
+                let csvContent = "\uFEFF日付,時間,結果,1つ目,2つ目\n";
+                scanHistory.forEach(row => {
+                    const c1 = (row.code1 || "").replace(/"/g, '""');
+                    const c2 = (row.code2 || "").replace(/"/g, '""');
+                    csvContent += `${row.date || ''},${row.time},${row.result},"${c1}","${c2}"\n`;
+                });
+
+                const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+
+                const link = document.createElement("a");
+                link.href = url;
+                link.setAttribute("download", "照合履歴.csv");
+                
+                document.body.appendChild(link);
+                link.click();
+                
+                setTimeout(() => {
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            }
         });
 
-        // iPadOS/iOS対策: Blob化して一時URLを生成
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-
-        const link = document.createElement("a");
-        link.href = url;
-        link.setAttribute("download", "照合履歴.csv");
-        
-        // iPad Safariでの誤動作を防ぐため、画面に一瞬追加してクリック後に削除
-        document.body.appendChild(link);
-        link.click();
-        
-        setTimeout(() => {
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url); // メモリ解放
-        }, 100);
-    }
-});
         tabHistoryClear.addEventListener("click", async () => {
             flashTab(tabHistoryClear);
-            const confirmed = await showAppConfirm("履歴を全削除しますか？");
+            const confirmed = await showAppConfirm("すべての実績・履歴を全削除しますか？");
             if (confirmed) {
                 scanHistory = [];
+                dailySummaryList = [];
+                dailyOkCount = 0;
+                dailyNgCount = 0;
+
                 localStorage.removeItem("scanHistory");
+                localStorage.removeItem("dailySummaryList");
+                localStorage.removeItem("dailyOkCount");
+                localStorage.removeItem("dailyNgCount");
+
                 updateHistoryUI();
             }
         });
