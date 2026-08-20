@@ -353,7 +353,7 @@
         return `${now.getFullYear()}/${(now.getMonth()+1).toString().padStart(2,'0')}/${now.getDate().toString().padStart(2,'0')}`;
     }
 
-    // 日付変更チェック＆過去データの保持処理
+    // 日付変更チェック＆過去データの自動移行・統合処理
     function checkAndRollDailySummary() {
         const today = getTodayString();
         
@@ -368,10 +368,12 @@
                 localStorage.setItem("dailySummaryList", JSON.stringify(dailySummaryList));
             }
 
-            // 前日までの詳細履歴を過去履歴に統合して保存
+            // 日付が変わったタイミングで本日の履歴を過去履歴へ移行
             if (scanHistory.length > 0) {
                 pastScanHistory = [...scanHistory, ...pastScanHistory];
                 localStorage.setItem("pastScanHistory", JSON.stringify(pastScanHistory));
+                scanHistory = [];
+                localStorage.removeItem("scanHistory");
             }
 
             // 本日分をリセット
@@ -379,8 +381,6 @@
             dailyNgCount = 0;
             localStorage.setItem("dailyOkCount", 0);
             localStorage.setItem("dailyNgCount", 0);
-            scanHistory = [];
-            localStorage.removeItem("scanHistory");
         }
 
         currentTodayStr = today;
@@ -585,6 +585,32 @@
             try { pastScanHistory = JSON.parse(savedPastHistory); } catch(e){}
         }
 
+        // 保存された scanHistory の読み込み
+        const savedHistory = localStorage.getItem("scanHistory");
+        if (savedHistory) {
+            try { scanHistory = JSON.parse(savedHistory); } catch(e){}
+        }
+
+        // 救済策: 本日の日付と異なる古いscanHistoryが残っている場合、それらを自動的に pastScanHistory へ移行する
+        const todayStr = getTodayString();
+        const currentItems = [];
+        const oldItems = [];
+
+        scanHistory.forEach(item => {
+            if (item.date && item.date !== todayStr) {
+                oldItems.push(item);
+            } else {
+                currentItems.push(item);
+            }
+        });
+
+        if (oldItems.length > 0) {
+            pastScanHistory = [...oldItems, ...pastScanHistory];
+            scanHistory = currentItems;
+            localStorage.setItem("pastScanHistory", JSON.stringify(pastScanHistory));
+            localStorage.setItem("scanHistory", JSON.stringify(scanHistory));
+        }
+
         checkAndRollDailySummary();
 
         const savedMaster = localStorage.getItem("masterDataMap");
@@ -598,11 +624,6 @@
                     csvStatus.style.color = "#008800";
                 }
             } catch (e) { console.error(e); }
-        }
-
-        const savedHistory = localStorage.getItem("scanHistory");
-        if (savedHistory) {
-            try { scanHistory = JSON.parse(savedHistory); } catch(e){}
         }
 
         updateHistoryUI();
@@ -801,11 +822,10 @@
         scanResult.textContent = "";
     }
 
-    // 画面表示更新（1行化・過去リスト表示）
+    // 画面表示更新
     function updateHistoryUI() {
         if (!historyArea) return;
 
-        // iPhoneの小さな画面でも確実に1行に収まるスタイリング
         let html = `
             <div style="background:#f0f4f8; padding:6px 4px; border-radius:6px; margin-bottom:8px; font-weight:bold; text-align:center; border:1px solid #cbd5e1; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                 【本日】<span style="color:#28a745; margin:0 4px;">⭕OK:${dailyOkCount}</span> <span style="color:#dc3545; margin:0 4px;">❌NG:${dailyNgCount}</span> <span style="color:#666; font-size:10px;">(${getTodayString()})</span>
@@ -835,12 +855,12 @@
             `).join("");
         }
 
-        // 3. 過去の全リスト（過去の日別集計の下に表示）
+        // 3. 過去の全リスト
         if (pastScanHistory.length > 0) {
             html += `<div style="font-weight:bold; margin:10px 0 4px 0; color:#555; border-top:1px dashed #ccc; padding-top:6px; font-size:11px;">■ 過去の照合リスト</div>`;
             html += pastScanHistory.map(item => `
                 <div class="history-item ${item.result === '一致' ? 'ok' : 'ng'}" style="opacity:0.85;">
-                    <strong>[${item.date} ${item.time}] ${item.result}</strong><br>
+                    <strong>[${item.date || ''} ${item.time}] ${item.result}</strong><br>
                     1: ${item.code1} / 2: ${item.code2}
                 </div>
             `).join("");
@@ -912,7 +932,7 @@
             resetScan();
         });
 
-        // CSV出力（本日分＋過去分をまとめて出力）
+        // CSV出力（本日＋過去データを確実に統合して出力）
         tabCsvExport.addEventListener("click", async () => {
             flashTab(tabCsvExport);
             const allHistory = [...scanHistory, ...pastScanHistory];
@@ -922,7 +942,7 @@
                 return;
             }
 
-            const confirmed = await showAppConfirm("照合履歴（全データ）をCSV出力しますか？");
+            const confirmed = await showAppConfirm(`全${allHistory.length}件の照合履歴をCSV出力しますか？`);
             if (confirmed) {
                 let csvContent = "\uFEFF日付,時間,結果,1つ目,2つ目\n";
                 allHistory.forEach(row => {
