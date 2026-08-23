@@ -330,10 +330,13 @@
     let masterDataMap = {};
     let scanHistory = [];
 
-    // AR追従枠用変数
+    // ★ AR追従枠用変数（スムージング＆ホールド強化）
     let overlayCanvas = null;
     let overlayCtx = null;
-    let clearBoxTimeout = null;
+    let currentPoints = null;       // 目標の検出座標
+    let displayedPoints = null;     // 画面描画中の補間座標
+    let lastDetectTime = 0;         // 最後に検出した時刻
+    let animationFrameId = null;    // 描画ループ用ID
 
     // 日別集計・過去全履歴用変数
     let dailyOkCount = 0;
@@ -563,11 +566,9 @@
         clearCsvBtn = document.getElementById("clear-csv-btn");
         videoElement = document.getElementById("video-element");
 
-        // AR描画キャンバスの設定
         overlayCanvas = document.getElementById("overlay-canvas");
         if (overlayCanvas) overlayCtx = overlayCanvas.getContext("2d");
 
-        // データ復元
         currentTodayStr = localStorage.getItem("lastScanDate") || getTodayString();
         dailyOkCount = parseInt(localStorage.getItem("dailyOkCount") || "0", 10);
         dailyNgCount = parseInt(localStorage.getItem("dailyNgCount") || "0", 10);
@@ -634,78 +635,110 @@
         if (freezeCheckInterval) {
             clearInterval(freezeCheckInterval);
         }
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
         clearOverlayCanvas();
     }
 
     function clearOverlayCanvas() {
+        currentPoints = null;
+        displayedPoints = null;
         if (overlayCtx && overlayCanvas) {
             overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
         }
     }
 
-    // ★ AR追従枠のリアルタイム描画関数
-    function drawARBoundingBox(resultPoints) {
-        if (!overlayCtx || !overlayCanvas || !videoElement || !resultPoints || resultPoints.length === 0) return;
+// ★ 改良版：描画ループ（QRコードの3点検出時も四角形として描画）
+    function renderARLoop() {
+        const now = Date.now();
+        const HOLD_TIME_MS = 600; // フレームがスキップしても600ms間は枠を保持（点滅防止）
 
-        // 解像度をビューポートサイズに合わせる
-        const vRect = videoElement.getBoundingClientRect();
-        if (overlayCanvas.width !== vRect.width || overlayCanvas.height !== vRect.height) {
-            overlayCanvas.width = vRect.width;
-            overlayCanvas.height = vRect.height;
-        }
-
-        const videoWidth = videoElement.videoWidth;
-        const videoHeight = videoElement.videoHeight;
-        if (!videoWidth || !videoHeight) return;
-
-        // スケール計算（object-fit: cover を再現）
-        const scale = Math.max(vRect.width / videoWidth, vRect.height / videoHeight);
-        const renderedWidth = videoWidth * scale;
-        const renderedHeight = videoHeight * scale;
-        const offsetX = (renderedWidth - vRect.width) / 2;
-        const offsetY = (renderedHeight - vRect.height) / 2;
-
-        const screenPoints = resultPoints.map(pt => ({
-            x: (pt.x * scale) - offsetX,
-            y: (pt.y * scale) - offsetY
-        }));
-
-        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-
-        // 枠線のスタイル定義
-        overlayCtx.strokeStyle = "#00ff66";
-        overlayCtx.fillStyle = "rgba(0, 255, 102, 0.25)";
-        overlayCtx.lineWidth = 4;
-        overlayCtx.lineJoin = "round";
-
-        overlayCtx.beginPath();
-        if (screenPoints.length === 2) {
-            // バーコード（2点指定）の場合、厚みを持たせてバウンディングボックス化
-            const p1 = screenPoints[0];
-            const p2 = screenPoints[1];
-            const margin = 15;
-            const minX = Math.min(p1.x, p2.x) - margin;
-            const maxX = Math.max(p1.x, p2.x) + margin;
-            const minY = Math.min(p1.y, p2.y) - margin;
-            const maxY = Math.max(p1.y, p2.y) + margin;
-
-            overlayCtx.rect(minX, minY, maxX - minX, maxY - minY);
-        } else {
-            // QRコードなど多角形データの場合
-            overlayCtx.moveTo(screenPoints[0].x, screenPoints[0].y);
-            for (let i = 1; i < screenPoints.length; i++) {
-                overlayCtx.lineTo(screenPoints[i].x, screenPoints[i].y);
+        if (now - lastDetectTime > HOLD_TIME_MS) {
+            // 保持時間を過ぎたら枠を消去
+            currentPoints = null;
+            displayedPoints = null;
+            if (overlayCtx && overlayCanvas) {
+                overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
             }
-            overlayCtx.closePath();
-        }
-        overlayCtx.stroke();
-        overlayCtx.fill();
+        } else if (currentPoints && overlayCtx && overlayCanvas && videoElement) {
+            const vRect = videoElement.getBoundingClientRect();
+            if (overlayCanvas.width !== vRect.width || overlayCanvas.height !== vRect.height) {
+                overlayCanvas.width = vRect.width;
+                overlayCanvas.height = vRect.height;
+            }
 
-        // 一定時間検知がない場合に枠をクリア
-        if (clearBoxTimeout) clearTimeout(clearBoxTimeout);
-        clearBoxTimeout = setTimeout(() => {
-            clearOverlayCanvas();
-        }, 300);
+            const videoWidth = videoElement.videoWidth;
+            const videoHeight = videoElement.videoHeight;
+
+            if (videoWidth && videoHeight) {
+                const scale = Math.max(vRect.width / videoWidth, vRect.height / videoHeight);
+                const renderedWidth = videoWidth * scale;
+                const renderedHeight = videoHeight * scale;
+                const offsetX = (renderedWidth - vRect.width) / 2;
+                const offsetY = (renderedHeight - vRect.height) / 2;
+
+                // スクリーンの実際のピクセル座標へ変換
+                const targetPoints = currentPoints.map(pt => ({
+                    x: (pt.x * scale) - offsetX,
+                    y: (pt.y * scale) - offsetY
+                }));
+
+                // 座標のスムージング（急激な位置の飛び・ガタつきを軽減）
+                if (!displayedPoints || displayedPoints.length !== targetPoints.length) {
+                    displayedPoints = targetPoints;
+                } else {
+                    const lerpFactor = 0.45; // 追従の滑らかさ係数
+                    displayedPoints = displayedPoints.map((pt, i) => ({
+                        x: pt.x + (targetPoints[i].x - pt.x) * lerpFactor,
+                        y: pt.y + (targetPoints[i].y - pt.y) * lerpFactor
+                    }));
+                }
+
+                overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+                // 緑枠スタイル設定
+                overlayCtx.strokeStyle = "#00ff66";
+                overlayCtx.fillStyle = "rgba(0, 255, 102, 0.22)";
+                overlayCtx.lineWidth = 4;
+                overlayCtx.lineJoin = "round";
+
+                overlayCtx.beginPath();
+                
+                // ★ 修正箇所：バーコード（2点）またはQRコード等（3点以上）に関わらず外接四角形を作成
+                const xs = displayedPoints.map(p => p.x);
+                const ys = displayedPoints.map(p => p.y);
+                const minX = Math.min(...xs);
+                const maxX = Math.max(...xs);
+                const minY = Math.min(...ys);
+                const maxY = Math.max(...ys);
+
+                // マージン（枠のゆとり幅）の設定
+                // 2点（バーコード）の場合は大きめに、3点以上（QRコード）は角のマーカーに合わせたマージン
+                const margin = (displayedPoints.length === 2) ? 18 : 12;
+
+                const rectX = minX - margin;
+                const rectY = minY - margin;
+                const rectW = (maxX - minX) + (margin * 2);
+                const rectH = (maxY - minY) + (margin * 2);
+
+                // 四角形を描画
+                overlayCtx.rect(rectX, rectY, rectW, rectH);
+
+                overlayCtx.stroke();
+                overlayCtx.fill();
+            }
+        }
+
+        animationFrameId = requestAnimationFrame(renderARLoop);
+    }
+
+    function drawARBoundingBox(resultPoints) {
+        if (resultPoints && resultPoints.length > 0) {
+            currentPoints = resultPoints;
+            lastDetectTime = Date.now();
+        }
     }
 
     function isInsideGuide(resultPoints) {
@@ -742,12 +775,15 @@
         stopCamera();
         codeReader = new ZXing.BrowserMultiFormatReader();
 
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        renderARLoop();
+
         try {
             await codeReader.decodeFromVideoDevice(undefined, 'video-element', (result, err) => {
                 if (result) {
                     const points = result.getResultPoints();
                     
-                    // ★ 認識中はAR枠をリアルタイムで描画
+                    // リアルタイム座標更新
                     drawARBoundingBox(points);
 
                     if (isScanning && currentMode === "barcode") {
@@ -1171,5 +1207,6 @@
             csvStatus.style.color = "#008800";
         }
     }
-</script></body>
+</script>
+</body>
 </html>
