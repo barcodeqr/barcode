@@ -81,60 +81,79 @@
         overflow: hidden; /* 子要素の高さ調整を有効化 */
     }
 
-    #start-audio-btn {
-        flex: 0 0 auto;
-        background: #ffcc00; color: #333; font-weight: bold; border: 2px solid #ff9900;
-        padding: 12px 20px; font-size: 16px; margin: 0 0 10px 0; animation: pulse 1.5s infinite;
-        border-radius: 12px; cursor: pointer; width: 100%;
-    }
-    @keyframes pulse {
-        0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); }
-    }
+#start-audio-btn {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 50;
+    background: rgba(20, 20, 20, 0.95);
+    color: #ffcc00;
+    font-size: 18px;
+    font-weight: bold;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation: pulse 1.5s infinite;
+}
 
-    #instruction-text { 
-        flex: 0 0 auto;
-        font-size: 14px; color: #555; margin: 0 0 8px 0; font-weight: bold; 
-    }
+#start-audio-btn.hidden {
+    display: none !important;
+}
 
-    /* カメラビューポート */
-    #interactive.viewport {
-        flex: 0 0 auto;
-        width: 100%; aspect-ratio: 16 / 9; height: auto;
-        margin: 0 auto; background: #000; position: relative; overflow: hidden; border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }        
+@keyframes pulse {
+    0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; }
+}
 
-    #interactive.viewport video { width: 100%; height: 100%; object-fit: cover; }
+#instruction-text { 
+    flex: 0 0 auto;
+    font-size: 14px; color: #555; margin: 0 0 8px 0; font-weight: bold; 
+}
 
-    .scan-area-guide {
-        position: absolute; top: 20%; left: 10%; width: 80%; height: 60%;
-        border: 3px solid #00ff66; box-sizing: border-box; box-shadow: 0 0 15px rgba(0,255,102,0.8), inset 0 0 15px rgba(0,255,102,0.3);
-        z-index: 10; overflow: hidden; display: flex; justify-content: center; align-items: center;
-        pointer-events: none; border-radius: 8px;
-    }
+/* カメラビューポート */
+#interactive.viewport {
+    flex: 0 0 auto;
+    width: 100%; aspect-ratio: 16 / 9; height: auto;
+    margin: 0 auto; background: #000; position: relative; overflow: hidden; border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}       
 
-    .scan-area-guide.ocr-mode{ top: 30%; left: 10%; width: 80%; height: 40%; }
+#interactive.viewport video { width: 100%; height: 100%; object-fit: cover; }
 
-    #scan-result{
-        position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-        width: 100%; text-align: center; font-size: 90px; font-weight: bold; color: #fff;
-        text-shadow: 0 0 10px #000, 0 0 20px #000; display: none; z-index: 100; pointer-events: none;
-    }
+.scan-area-guide {
+    position: absolute; top: 20%; left: 10%; width: 80%; height: 60%;
+    border: 3px solid #00ff66; box-sizing: border-box; box-shadow: 0 0 15px rgba(0,255,102,0.8), inset 0 0 15px rgba(0,255,102,0.3);
+    z-index: 10; overflow: hidden; display: flex; justify-content: center; align-items: center;
+    pointer-events: none; border-radius: 8px;
+}
 
-    #scan-result.ok{ display: block; color: #00ff66; }
-    #scan-result.ng{ display: block; color: #ff2222; }
+.scan-area-guide.ocr-mode{ top: 30%; left: 10%; width: 80%; height: 40%; }
 
-    .scan-area-guide::after{
-        content: ''; position: absolute; left: 0; width: 100%; height: 30px;
-        animation: scanLine 1.8s ease-in-out infinite alternate;
-    }
+#scan-result{
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: 100%; text-align: center; font-size: 90px; font-weight: bold; color: #fff;
+    text-shadow: 0 0 10px #000, 0 0 20px #000; display: none; z-index: 100; pointer-events: none;
+}
 
-    @keyframes scanLine {
-        0% { top: -30px; background: linear-gradient(to bottom, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%); }
-        100% { top: 100%; background: linear-gradient(to top, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%); }
-    }
+#scan-result.ok{ display: block; color: #00ff66; }
+#scan-result.ng{ display: block; color: #ff2222; }
 
-    .scan-area-guide.ng { border-color: #ff0000; box-shadow: 0 0 15px rgba(255,0,0,0.8); }
+.scan-area-guide::after{
+    content: ''; position: absolute; left: 0; width: 100%; height: 30px;
+    animation: scanLine 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes scanLine {
+    0% { top: -30px; background: linear-gradient(to bottom, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%); }
+    100% { top: 100%; background: linear-gradient(to top, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%); }
+}
+
+.scan-area-guide.ng { border-color: #ff0000; box-shadow: 0 0 15px rgba(255,0,0,0.8); }
 
     /* スキャン結果表示エリア */
     .result-box { 
@@ -246,19 +265,20 @@
     </div>
 
     <div class="container">
-        <button id="start-audio-btn">最初にタップしてカメラ起動</button>
-
         <p id="instruction-text">緑の枠内にコードまたはQRを合わせてください</p>
 
-       <div id="interactive" class="viewport">
-           <video id="video-element" playsinline webkit-playsinline muted autoplay></video>
-    
-           <canvas id="overlay-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15;"></canvas>
-    
-           <div class="scan-area-guide">
-               <div id="scan-result"></div>
-           </div>
-       </div>
+        <div id="interactive" class="viewport">
+            <video id="video-element" playsinline webkit-playsinline muted autoplay></video>
+            <canvas id="overlay-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15;"></canvas>
+        
+            <!-- ★ここに移動：カメラ枠全体を覆うレイヤーとして配置 -->
+            <button id="start-audio-btn">📷 タップしてカメラを起動</button>
+
+            <div class="scan-area-guide">
+                <div id="scan-result"></div>
+            </div>
+        </div>
+
         <button id="ocr-read-btn">文字を読み取る</button>
 
         <div class="result-box">
@@ -771,11 +791,17 @@
         return false;
     }
 
+// ★ 修正：バーコードスキャナーの起動処理（ARループの安全な再スタート）
     async function startBarcodeScanner() {
         stopCamera();
         codeReader = new ZXing.BrowserMultiFormatReader();
 
-        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        // 既存の描画ループを安全にクリアしてから再スタート
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+        clearOverlayCanvas();
         renderARLoop();
 
         try {
@@ -799,7 +825,6 @@
             showAppAlert("カメラの起動に失敗しました。カメラ権限を確認してください。");
         }
     }
-
     function handleBarcodeDetected(codeStr) {
         if (!isScanning || !codeStr) return;
 
@@ -1002,7 +1027,7 @@
         return cropCanvas;
     }
 
-    function setupTabs() {
+function setupTabs() {
         const tabBarcode = document.getElementById("tab-barcode");
         const tabOcr = document.getElementById("tab-ocr");
         const tabCsvExport = document.getElementById("tab-csv-export");
