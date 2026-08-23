@@ -250,13 +250,15 @@
 
         <p id="instruction-text">緑の枠内にコードまたはQRを合わせてください</p>
 
-        <div id="interactive" class="viewport">
-            <video id="video-element" playsinline webkit-playsinline muted autoplay></video>
-            <div class="scan-area-guide">
-                <div id="scan-result"></div>
-            </div>
-        </div>
-
+       <div id="interactive" class="viewport">
+           <video id="video-element" playsinline webkit-playsinline muted autoplay></video>
+    
+           <canvas id="overlay-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15;"></canvas>
+    
+           <div class="scan-area-guide">
+               <div id="scan-result"></div>
+           </div>
+       </div>
         <button id="ocr-read-btn">文字を読み取る</button>
 
         <div class="result-box">
@@ -328,11 +330,16 @@
     let masterDataMap = {};
     let scanHistory = [];
 
+    // AR追従枠用変数
+    let overlayCanvas = null;
+    let overlayCtx = null;
+    let clearBoxTimeout = null;
+
     // 日別集計・過去全履歴用変数
     let dailyOkCount = 0;
     let dailyNgCount = 0;
     let dailySummaryList = [];
-    let pastScanHistory = []; // 過去の全詳細履歴
+    let pastScanHistory = []; 
     let currentTodayStr = "";
 
     // 自動リロード監視用変数
@@ -353,36 +360,24 @@
         return `${now.getFullYear()}/${(now.getMonth()+1).toString().padStart(2,'0')}/${now.getDate().toString().padStart(2,'0')}`;
     }
 
-    // 日付変更チェック＆過去データの自動移行・統合処理
     function checkAndRollDailySummary() {
         const today = getTodayString();
-        
         if (currentTodayStr && currentTodayStr !== today) {
-            // 前日分に実績があれば日別集計に追加
             if (dailyOkCount > 0 || dailyNgCount > 0) {
-                dailySummaryList.unshift({
-                    date: currentTodayStr,
-                    ok: dailyOkCount,
-                    ng: dailyNgCount
-                });
+                dailySummaryList.unshift({ date: currentTodayStr, ok: dailyOkCount, ng: dailyNgCount });
                 localStorage.setItem("dailySummaryList", JSON.stringify(dailySummaryList));
             }
-
-            // 日付が変わったタイミングで本日の履歴を過去履歴へ移行
             if (scanHistory.length > 0) {
                 pastScanHistory = [...scanHistory, ...pastScanHistory];
                 localStorage.setItem("pastScanHistory", JSON.stringify(pastScanHistory));
                 scanHistory = [];
                 localStorage.removeItem("scanHistory");
             }
-
-            // 本日分をリセット
             dailyOkCount = 0;
             dailyNgCount = 0;
             localStorage.setItem("dailyOkCount", 0);
             localStorage.setItem("dailyNgCount", 0);
         }
-
         currentTodayStr = today;
         localStorage.setItem("lastScanDate", currentTodayStr);
     }
@@ -398,11 +393,9 @@
             if (audio) {
                 audio.currentTime = startTime;
                 const playPromise = audio.play();
-
                 if (playPromise !== undefined) {
                     playPromise.catch(e => console.warn("Audio play blocked:", e));
                 }
-
                 if (duration) {
                     setTimeout(() => {
                         audio.pause();
@@ -570,6 +563,10 @@
         clearCsvBtn = document.getElementById("clear-csv-btn");
         videoElement = document.getElementById("video-element");
 
+        // AR描画キャンバスの設定
+        overlayCanvas = document.getElementById("overlay-canvas");
+        if (overlayCanvas) overlayCtx = overlayCanvas.getContext("2d");
+
         // データ復元
         currentTodayStr = localStorage.getItem("lastScanDate") || getTodayString();
         dailyOkCount = parseInt(localStorage.getItem("dailyOkCount") || "0", 10);
@@ -585,13 +582,11 @@
             try { pastScanHistory = JSON.parse(savedPastHistory); } catch(e){}
         }
 
-        // 保存された scanHistory の読み込み
         const savedHistory = localStorage.getItem("scanHistory");
         if (savedHistory) {
             try { scanHistory = JSON.parse(savedHistory); } catch(e){}
         }
 
-        // 救済策: 本日の日付と異なる古いscanHistoryが残っている場合、それらを自動的に pastScanHistory へ移行する
         const todayStr = getTodayString();
         const currentItems = [];
         const oldItems = [];
@@ -639,6 +634,78 @@
         if (freezeCheckInterval) {
             clearInterval(freezeCheckInterval);
         }
+        clearOverlayCanvas();
+    }
+
+    function clearOverlayCanvas() {
+        if (overlayCtx && overlayCanvas) {
+            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        }
+    }
+
+    // ★ AR追従枠のリアルタイム描画関数
+    function drawARBoundingBox(resultPoints) {
+        if (!overlayCtx || !overlayCanvas || !videoElement || !resultPoints || resultPoints.length === 0) return;
+
+        // 解像度をビューポートサイズに合わせる
+        const vRect = videoElement.getBoundingClientRect();
+        if (overlayCanvas.width !== vRect.width || overlayCanvas.height !== vRect.height) {
+            overlayCanvas.width = vRect.width;
+            overlayCanvas.height = vRect.height;
+        }
+
+        const videoWidth = videoElement.videoWidth;
+        const videoHeight = videoElement.videoHeight;
+        if (!videoWidth || !videoHeight) return;
+
+        // スケール計算（object-fit: cover を再現）
+        const scale = Math.max(vRect.width / videoWidth, vRect.height / videoHeight);
+        const renderedWidth = videoWidth * scale;
+        const renderedHeight = videoHeight * scale;
+        const offsetX = (renderedWidth - vRect.width) / 2;
+        const offsetY = (renderedHeight - vRect.height) / 2;
+
+        const screenPoints = resultPoints.map(pt => ({
+            x: (pt.x * scale) - offsetX,
+            y: (pt.y * scale) - offsetY
+        }));
+
+        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+        // 枠線のスタイル定義
+        overlayCtx.strokeStyle = "#00ff66";
+        overlayCtx.fillStyle = "rgba(0, 255, 102, 0.25)";
+        overlayCtx.lineWidth = 4;
+        overlayCtx.lineJoin = "round";
+
+        overlayCtx.beginPath();
+        if (screenPoints.length === 2) {
+            // バーコード（2点指定）の場合、厚みを持たせてバウンディングボックス化
+            const p1 = screenPoints[0];
+            const p2 = screenPoints[1];
+            const margin = 15;
+            const minX = Math.min(p1.x, p2.x) - margin;
+            const maxX = Math.max(p1.x, p2.x) + margin;
+            const minY = Math.min(p1.y, p2.y) - margin;
+            const maxY = Math.max(p1.y, p2.y) + margin;
+
+            overlayCtx.rect(minX, minY, maxX - minX, maxY - minY);
+        } else {
+            // QRコードなど多角形データの場合
+            overlayCtx.moveTo(screenPoints[0].x, screenPoints[0].y);
+            for (let i = 1; i < screenPoints.length; i++) {
+                overlayCtx.lineTo(screenPoints[i].x, screenPoints[i].y);
+            }
+            overlayCtx.closePath();
+        }
+        overlayCtx.stroke();
+        overlayCtx.fill();
+
+        // 一定時間検知がない場合に枠をクリア
+        if (clearBoxTimeout) clearTimeout(clearBoxTimeout);
+        clearBoxTimeout = setTimeout(() => {
+            clearOverlayCanvas();
+        }, 300);
     }
 
     function isInsideGuide(resultPoints) {
@@ -677,10 +744,16 @@
 
         try {
             await codeReader.decodeFromVideoDevice(undefined, 'video-element', (result, err) => {
-                if (result && isScanning && currentMode === "barcode") {
+                if (result) {
                     const points = result.getResultPoints();
-                    if (isInsideGuide(points)) {
-                        handleBarcodeDetected(result.getText());
+                    
+                    // ★ 認識中はAR枠をリアルタイムで描画
+                    drawARBoundingBox(points);
+
+                    if (isScanning && currentMode === "barcode") {
+                        if (isInsideGuide(points)) {
+                            handleBarcodeDetected(result.getText());
+                        }
                     }
                 }
             });
@@ -820,9 +893,9 @@
         guide.className = currentMode === "ocr" ? "scan-area-guide ocr-mode" : "scan-area-guide";
         scanResult.className = "";
         scanResult.textContent = "";
+        clearOverlayCanvas();
     }
 
-    // 画面表示更新
     function updateHistoryUI() {
         if (!historyArea) return;
 
@@ -832,7 +905,6 @@
             </div>
         `;
 
-        // 1. 本日の詳細履歴
         if (scanHistory.length === 0) {
             html += "<div style='color:#888; text-align:center; padding:4px; font-size:11px;'>（本日の履歴なし）</div>";
         } else {
@@ -844,7 +916,6 @@
             `).join("");
         }
 
-        // 2. 過去の日別集計
         if (dailySummaryList.length > 0) {
             html += `<div style="font-weight:bold; margin:10px 0 4px 0; color:#555; border-top:1px dashed #ccc; padding-top:6px; font-size:11px;">■ 過去の日別集計</div>`;
             html += dailySummaryList.map(sum => `
@@ -855,7 +926,6 @@
             `).join("");
         }
 
-        // 3. 過去の全リスト
         if (pastScanHistory.length > 0) {
             html += `<div style="font-weight:bold; margin:10px 0 4px 0; color:#555; border-top:1px dashed #ccc; padding-top:6px; font-size:11px;">■ 過去の照合リスト</div>`;
             html += pastScanHistory.map(item => `
@@ -932,7 +1002,6 @@
             resetScan();
         });
 
-        // CSV出力（本日＋過去データを確実に統合して出力）
         tabCsvExport.addEventListener("click", async () => {
             flashTab(tabCsvExport);
             const allHistory = [...scanHistory, ...pastScanHistory];
@@ -1102,6 +1171,5 @@
             csvStatus.style.color = "#008800";
         }
     }
-</script>
-</body>
+</script></body>
 </html>
