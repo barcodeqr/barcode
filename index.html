@@ -193,7 +193,7 @@
         box-shadow: 0 4px 0 #1B5E20; cursor: pointer;
     }
 
-    /* ★履歴カード全体（あまりの縦スペースをすべて使って自動伸縮）★ */
+    /* ★履歴カード全体（余りの縦スペースをすべて使って自動伸縮）★ */
     .history-card {
         flex: 1; /* iPad等で余った高さをすべて占有 */
         display: flex;
@@ -233,13 +233,16 @@
         background: #fff; padding: 20px; border-radius: 12px; max-width: 90%; width: 340px;
         box-shadow: 0 4px 20px rgba(0,0,0,0.2); text-align: center;
     }
-    .modal-buttons { margin-top: 15px; display: flex; justify-content: center; gap: 10px; }
+    .modal-buttons { margin-top: 15px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
     .modal-btn { padding: 8px 16px; font-size: 14px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; }
     .modal-btn-ok { background: #007aff; color: #fff; }
+    .modal-btn-warning { background: #f39c12; color: #fff; }
+    .modal-btn-danger { background: #dc3545; color: #fff; }
     .modal-btn-cancel { background: #888; color: #fff; }
 
     #master-csv-modal { z-index: 10000; }
     #custom-modal-overlay { z-index: 20000; }
+    #clear-modal-overlay { z-index: 20000; }
 
     .csv-upload-box {
         text-align: left; background: #f8f9fa; border: 2px dashed #007aff; border-radius: 8px; padding: 12px; margin-top: 10px;
@@ -271,7 +274,6 @@
             <video id="video-element" playsinline webkit-playsinline muted autoplay></video>
             <canvas id="overlay-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15;"></canvas>
         
-            <!-- ★ここに移動：カメラ枠全体を覆うレイヤーとして配置 -->
             <button id="start-audio-btn">📷 タップしてカメラを起動</button>
 
             <div class="scan-area-guide">
@@ -303,6 +305,7 @@
         </div>
     </div>
 
+    <!-- カスタム汎用モーダル -->
     <div id="custom-modal-overlay" class="modal-overlay">
         <div class="modal-box">
             <div id="custom-modal-msg"></div>
@@ -313,6 +316,21 @@
         </div>
     </div>
 
+    <!-- 履歴削除モーダル -->
+    <div id="clear-modal-overlay" class="modal-overlay">
+        <div class="modal-box">
+            <h3 style="margin-top:0;">🗑️ 履歴削除</h3>
+            <p style="font-size:14px; color:#555;">削除する対象を選択してください。</p>
+            <div class="modal-buttons" style="flex-direction: column;">
+                <button id="clear-today-btn" class="modal-btn modal-btn-ok" style="width:100%;">本日の履歴のみ削除</button>
+                <button id="clear-other-months-btn" class="modal-btn modal-btn-warning" style="width:100%;">今月以外の履歴を削除</button>
+                <button id="clear-all-btn" class="modal-btn modal-btn-danger" style="width:100%;">すべての履歴を削除</button>
+                <button id="clear-cancel-btn" class="modal-btn modal-btn-cancel" style="width:100%;">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- マスターCSVモーダル -->
     <div id="master-csv-modal" class="modal-overlay">
         <div class="modal-box">
             <h3>📂 マスターCSV設定</h3>
@@ -350,13 +368,13 @@
     let masterDataMap = {};
     let scanHistory = [];
 
-    // ★ AR追従枠用変数（スムージング＆ホールド強化）
+    // AR追従枠用変数
     let overlayCanvas = null;
     let overlayCtx = null;
-    let currentPoints = null;       // 目標の検出座標
-    let displayedPoints = null;     // 画面描画中の補間座標
-    let lastDetectTime = 0;         // 最後に検出した時刻
-    let animationFrameId = null;    // 描画ループ用ID
+    let currentPoints = null;       
+    let displayedPoints = null;     
+    let lastDetectTime = 0;         
+    let animationFrameId = null;    
 
     // 日別集計・過去全履歴用変数
     let dailyOkCount = 0;
@@ -381,6 +399,11 @@
     function getTodayString() {
         const now = new Date();
         return `${now.getFullYear()}/${(now.getMonth()+1).toString().padStart(2,'0')}/${now.getDate().toString().padStart(2,'0')}`;
+    }
+
+    function getCurrentYearMonth() {
+        const now = new Date();
+        return `${now.getFullYear()}/${(now.getMonth()+1).toString().padStart(2,'0')}`;
     }
 
     function checkAndRollDailySummary() {
@@ -515,6 +538,36 @@
             };
 
             okBtn.addEventListener("click", handleOk);
+            cancelBtn.addEventListener("click", handleCancel);
+        });
+    }
+
+    function showHistoryClearModal() {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById("clear-modal-overlay");
+            const todayBtn = document.getElementById("clear-today-btn");
+            const otherMonthsBtn = document.getElementById("clear-other-months-btn");
+            const allBtn = document.getElementById("clear-all-btn");
+            const cancelBtn = document.getElementById("clear-cancel-btn");
+
+            overlay.style.display = "flex";
+
+            const handleToday = () => { cleanup(); resolve("today"); };
+            const handleOtherMonths = () => { cleanup(); resolve("other-months"); };
+            const handleAll = () => { cleanup(); resolve("all"); };
+            const handleCancel = () => { cleanup(); resolve(null); };
+
+            const cleanup = () => {
+                overlay.style.display = "none";
+                todayBtn.removeEventListener("click", handleToday);
+                otherMonthsBtn.removeEventListener("click", handleOtherMonths);
+                allBtn.removeEventListener("click", handleAll);
+                cancelBtn.removeEventListener("click", handleCancel);
+            };
+
+            todayBtn.addEventListener("click", handleToday);
+            otherMonthsBtn.addEventListener("click", handleOtherMonths);
+            allBtn.addEventListener("click", handleAll);
             cancelBtn.addEventListener("click", handleCancel);
         });
     }
@@ -670,13 +723,11 @@
         }
     }
 
-    // ★ 改良版：描画ループ（QRコードの3点検出時も四角形として描画）
     function renderARLoop() {
         const now = Date.now();
-        const HOLD_TIME_MS = 600; // フレームがスキップしても600ms間は枠を保持（点滅防止）
+        const HOLD_TIME_MS = 600;
 
         if (now - lastDetectTime > HOLD_TIME_MS) {
-            // 保持時間を過ぎたら枠を消去
             currentPoints = null;
             displayedPoints = null;
             if (overlayCtx && overlayCanvas) {
@@ -699,17 +750,15 @@
                 const offsetX = (renderedWidth - vRect.width) / 2;
                 const offsetY = (renderedHeight - vRect.height) / 2;
 
-                // スクリーンの実際のピクセル座標へ変換
                 const targetPoints = currentPoints.map(pt => ({
                     x: (pt.x * scale) - offsetX,
                     y: (pt.y * scale) - offsetY
                 }));
 
-                // 座標のスムージング（急激な位置の飛び・ガタつきを軽減）
                 if (!displayedPoints || displayedPoints.length !== targetPoints.length) {
                     displayedPoints = targetPoints;
                 } else {
-                    const lerpFactor = 0.45; // 追従の滑らかさ係数
+                    const lerpFactor = 0.45;
                     displayedPoints = displayedPoints.map((pt, i) => ({
                         x: pt.x + (targetPoints[i].x - pt.x) * lerpFactor,
                         y: pt.y + (targetPoints[i].y - pt.y) * lerpFactor
@@ -718,7 +767,6 @@
 
                 overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
-                // 緑枠スタイル設定
                 overlayCtx.strokeStyle = "#00ff66";
                 overlayCtx.fillStyle = "rgba(0, 255, 102, 0.22)";
                 overlayCtx.lineWidth = 4;
@@ -726,7 +774,6 @@
 
                 overlayCtx.beginPath();
                 
-                // バーコード（2点）またはQRコード等（3点以上）に関わらず外接四角形を作成
                 const xs = displayedPoints.map(p => p.x);
                 const ys = displayedPoints.map(p => p.y);
                 const minX = Math.min(...xs);
@@ -734,7 +781,6 @@
                 const minY = Math.min(...ys);
                 const maxY = Math.max(...ys);
 
-                // マージン（枠のゆとり幅）の設定
                 const margin = (displayedPoints.length === 2) ? 18 : 12;
 
                 const rectX = minX - margin;
@@ -742,7 +788,6 @@
                 const rectW = (maxX - minX) + (margin * 2);
                 const rectH = (maxY - minY) + (margin * 2);
 
-                // 四角形を描画
                 overlayCtx.rect(rectX, rectY, rectW, rectH);
 
                 overlayCtx.stroke();
@@ -790,12 +835,10 @@
         return false;
     }
 
-    // ★ 修正：バーコードスキャナーの起動処理（ARループの安全な再スタート）
     async function startBarcodeScanner() {
         stopCamera();
         codeReader = new ZXing.BrowserMultiFormatReader();
 
-        // 既存の描画ループを安全にクリアしてから再スタート
         if (animationFrameId) {
             cancelAnimationFrame(animationFrameId);
             animationFrameId = null;
@@ -807,8 +850,6 @@
             await codeReader.decodeFromVideoDevice(undefined, 'video-element', (result, err) => {
                 if (result) {
                     const points = result.getResultPoints();
-                    
-                    // リアルタイム座標更新
                     drawARBoundingBox(points);
 
                     if (isScanning && currentMode === "barcode") {
@@ -1027,7 +1068,6 @@
         return cropCanvas;
     }
 
-    // ★ 修正：タブ切替処理（コード照合タブ復帰時のオーバーレイ再表示対応）
     function setupTabs() {
         const tabBarcode = document.getElementById("tab-barcode");
         const tabOcr = document.getElementById("tab-ocr");
@@ -1053,11 +1093,9 @@
             
             resetScan();
 
-            // ★ コード照合タブに戻った際、オーバーレイと描画ループを再有効化
             if (!animationFrameId) {
                 renderARLoop();
             }
-            // カメラが停止している場合は再起動
             if (!codeReader) {
                 startBarcodeScanner();
             }
@@ -1072,7 +1110,6 @@
             ocrReadBtn.style.display = "block";
             document.getElementById("instruction-text").textContent = "枠内に文字を合わせて「文字を読み取る」を押して下さい";
             
-            // ★ OCRモード時はARオーバーレイ表示を一度クリア
             clearOverlayCanvas();
             resetScan();
         });
@@ -1112,10 +1149,36 @@
             }
         });
 
+        // 履歴削除：選択肢モーダルを表示
         tabHistoryClear.addEventListener("click", async () => {
             flashTab(tabHistoryClear);
-            const confirmed = await showAppConfirm("すべての実績・過去履歴を全削除しますか？");
-            if (confirmed) {
+            
+            const choice = await showHistoryClearModal();
+            if (choice === "today") {
+                scanHistory = [];
+                dailyOkCount = 0;
+                dailyNgCount = 0;
+
+                localStorage.removeItem("scanHistory");
+                localStorage.setItem("dailyOkCount", 0);
+                localStorage.setItem("dailyNgCount", 0);
+
+                updateHistoryUI();
+                await showAppAlert("本日の履歴を削除しました。");
+            } else if (choice === "other-months") {
+                const currentYM = getCurrentYearMonth();
+
+                // 過去スキャン履歴から当月以外のデータを削除
+                pastScanHistory = pastScanHistory.filter(item => item.date && item.date.startsWith(currentYM));
+                // 日別集計から当月以外のデータを削除
+                dailySummaryList = dailySummaryList.filter(sum => sum.date && sum.date.startsWith(currentYM));
+
+                localStorage.setItem("pastScanHistory", JSON.stringify(pastScanHistory));
+                localStorage.setItem("dailySummaryList", JSON.stringify(dailySummaryList));
+
+                updateHistoryUI();
+                await showAppAlert("今月以外の履歴を削除しました。");
+            } else if (choice === "all") {
                 scanHistory = [];
                 pastScanHistory = [];
                 dailySummaryList = [];
@@ -1129,6 +1192,7 @@
                 localStorage.removeItem("dailyNgCount");
 
                 updateHistoryUI();
+                await showAppAlert("すべての履歴を削除しました。");
             }
         });
 
