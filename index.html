@@ -223,9 +223,38 @@
         font-size: 11px;
     }
 
-    .history-item { padding: 6px 8px; margin: 4px 6px; border-radius: 6px; font-size: 12px; }
+    .history-item { 
+        padding: 6px 8px; 
+        margin: 4px 6px; 
+        border-radius: 6px; 
+        font-size: 12px; 
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
     .history-item.ok { background: #eaf8ea; border-left: 4px solid #28a745; }
     .history-item.ng { background: #fdeaea; border-left: 4px solid #dc3545; }
+
+    .btn-delete-item {
+        display: none; /* 初期状態は非表示 */
+        background: #dc3545;
+        color: #fff;
+        border: none;
+        border-radius: 50%;
+        width: 22px;
+        height: 22px;
+        font-weight: bold;
+        font-size: 12px;
+        cursor: pointer;
+        padding: 0;
+        line-height: 22px;
+        text-align: center;
+    }
+    
+    /* 個別削除モードの時に「✕」ボタンを表示 */
+    .item-delete-mode .btn-delete-item {
+        display: inline-block;
+    }
 
     .modal-overlay {
         display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -243,6 +272,7 @@
     .modal-btn-cancel { background: #888; color: #fff; }
 
     #master-csv-modal { z-index: 10000; }
+    #date-select-modal-overlay { z-index: 20000; }
     #custom-modal-overlay { z-index: 20000; }
     #clear-modal-overlay { z-index: 20000; }
 
@@ -322,10 +352,22 @@
             <h3 style="margin-top:0;">🗑️ 履歴削除</h3>
             <p style="font-size:14px; color:#555;">削除する対象を選択してください。</p>
             <div class="modal-buttons" style="flex-direction: column;">
-                <button id="clear-today-btn" class="modal-btn modal-btn-ok" style="width:100%;">本日の履歴のみ削除</button>
+                <button id="clear-by-date-btn" class="modal-btn modal-btn-ok" style="width:100%;">日別を選択して削除</button>
+                <button id="clear-by-item-btn" class="modal-btn modal-btn-ok" style="width:100%; background:#28a745;">個別を選択して削除</button>
                 <button id="clear-other-months-btn" class="modal-btn modal-btn-warning" style="width:100%;">今月以外の履歴を削除</button>
                 <button id="clear-all-btn" class="modal-btn modal-btn-danger" style="width:100%;">すべての履歴を削除</button>
                 <button id="clear-cancel-btn" class="modal-btn modal-btn-cancel" style="width:100%;">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="date-select-modal-overlay" class="modal-overlay">
+        <div class="modal-box">
+            <h3 style="margin-top:0;">📅 削除する日付の選択</h3>
+            <select id="date-select-dropdown" style="width:100%; padding:8px; font-size:14px; margin-top:10px; border-radius:6px;"></select>
+            <div class="modal-buttons" style="margin-top:15px;">
+                <button id="date-select-exec-btn" class="modal-btn modal-btn-danger">削除</button>
+                <button id="date-select-cancel-btn" class="modal-btn modal-btn-cancel">キャンセル</button>
             </div>
         </div>
     </div>
@@ -353,6 +395,8 @@
     let currentMode = "barcode";
     let videoElement = null;
     let codeReader = null;
+
+    let isItemDeleteMode = false; // 個別削除モード状態フラグ
 
     let lastCandidateCode = null;
     let matchCount = 0;
@@ -540,29 +584,57 @@
     function showHistoryClearModal() {
         return new Promise((resolve) => {
             const overlay = document.getElementById("clear-modal-overlay");
-            const todayBtn = document.getElementById("clear-today-btn");
+            const byDateBtn = document.getElementById("clear-by-date-btn");
+            const byItemBtn = document.getElementById("clear-by-item-btn");
             const otherMonthsBtn = document.getElementById("clear-other-months-btn");
             const allBtn = document.getElementById("clear-all-btn");
             const cancelBtn = document.getElementById("clear-cancel-btn");
 
             overlay.style.display = "flex";
 
-            const handleToday = () => { cleanup(); resolve("today"); };
+            const handleByDate = () => { cleanup(); resolve("by-date"); };
+            const handleByItem = () => { cleanup(); resolve("by-item"); };
             const handleOtherMonths = () => { cleanup(); resolve("other-months"); };
             const handleAll = () => { cleanup(); resolve("all"); };
             const handleCancel = () => { cleanup(); resolve(null); };
 
             const cleanup = () => {
                 overlay.style.display = "none";
-                todayBtn.removeEventListener("click", handleToday);
+                byDateBtn.removeEventListener("click", handleByDate);
+                byItemBtn.removeEventListener("click", handleByItem);
                 otherMonthsBtn.removeEventListener("click", handleOtherMonths);
                 allBtn.removeEventListener("click", handleAll);
                 cancelBtn.removeEventListener("click", handleCancel);
             };
 
-            todayBtn.addEventListener("click", handleToday);
+            byDateBtn.addEventListener("click", handleByDate);
+            byItemBtn.addEventListener("click", handleByItem);
             otherMonthsBtn.addEventListener("click", handleOtherMonths);
             allBtn.addEventListener("click", handleAll);
+            cancelBtn.addEventListener("click", handleCancel);
+        });
+    }
+
+    function showDateSelectModal(dates) {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById("date-select-modal-overlay");
+            const dropdown = document.getElementById("date-select-dropdown");
+            const execBtn = document.getElementById("date-select-exec-btn");
+            const cancelBtn = document.getElementById("date-select-cancel-btn");
+
+            dropdown.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join("");
+            overlay.style.display = "flex";
+
+            const handleExec = () => { cleanup(); resolve(dropdown.value); };
+            const handleCancel = () => { cleanup(); resolve(null); };
+
+            const cleanup = () => {
+                overlay.style.display = "none";
+                execBtn.removeEventListener("click", handleExec);
+                cancelBtn.removeEventListener("click", handleCancel);
+            };
+
+            execBtn.addEventListener("click", handleExec);
             cancelBtn.addEventListener("click", handleCancel);
         });
     }
@@ -958,6 +1030,7 @@
         const timeStr = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
         
         scanHistory.unshift({
+            id: Date.now() + "_" + Math.random().toString(36).substr(2, 4),
             date: dateStr,
             time: timeStr,
             code1: code1,
@@ -993,17 +1066,67 @@
         clearOverlayCanvas();
     }
 
-    // ★ 日付ごとに「集計」→「照合リスト」の順番で表示する処理 ★
+    async function deleteByDate(targetDate) {
+        const confirmed = await showAppConfirm(`${targetDate} の履歴・集計をすべて削除しますか？`);
+        if (!confirmed) return;
+
+        const todayStr = getTodayString();
+        if (targetDate === todayStr) {
+            scanHistory = [];
+            dailyOkCount = 0;
+            dailyNgCount = 0;
+            localStorage.removeItem("scanHistory");
+            localStorage.setItem("dailyOkCount", 0);
+            localStorage.setItem("dailyNgCount", 0);
+        } else {
+            pastScanHistory = pastScanHistory.filter(item => item.date !== targetDate);
+            dailySummaryList = dailySummaryList.filter(sum => sum.date !== targetDate);
+            localStorage.setItem("pastScanHistory", JSON.stringify(pastScanHistory));
+            localStorage.setItem("dailySummaryList", JSON.stringify(dailySummaryList));
+        }
+
+        updateHistoryUI();
+        await showAppAlert(`${targetDate} の履歴を削除しました。`);
+    }
+
+    function deleteSingleItem(itemId) {
+        let foundIndex = scanHistory.findIndex(item => item.id === itemId);
+        if (foundIndex !== -1) {
+            const target = scanHistory[foundIndex];
+            scanHistory.splice(foundIndex, 1);
+            if (target.result === "一致") dailyOkCount = Math.max(0, dailyOkCount - 1);
+            else dailyNgCount = Math.max(0, dailyNgCount - 1);
+
+            localStorage.setItem("scanHistory", JSON.stringify(scanHistory));
+            localStorage.setItem("dailyOkCount", dailyOkCount);
+            localStorage.setItem("dailyNgCount", dailyNgCount);
+        } else {
+            foundIndex = pastScanHistory.findIndex(item => item.id === itemId);
+            if (foundIndex !== -1) {
+                const target = pastScanHistory[foundIndex];
+                pastScanHistory.splice(foundIndex, 1);
+                
+                const sumObj = dailySummaryList.find(sum => sum.date === target.date);
+                if (sumObj) {
+                    if (target.result === "一致") sumObj.ok = Math.max(0, sumObj.ok - 1);
+                    else sumObj.ng = Math.max(0, sumObj.ng - 1);
+                    localStorage.setItem("dailySummaryList", JSON.stringify(dailySummaryList));
+                }
+
+                localStorage.setItem("pastScanHistory", JSON.stringify(pastScanHistory));
+            }
+        }
+        updateHistoryUI();
+    }
+
     function updateHistoryUI() {
         if (!historyArea) return;
 
         const todayStr = getTodayString();
         const allScans = [...scanHistory, ...pastScanHistory];
         
-        // 日付ごとのマップ構造を作成
         const dateMap = {};
 
-        // 1. 本日分の初期化
         dateMap[todayStr] = {
             date: todayStr,
             isToday: true,
@@ -1012,7 +1135,6 @@
             items: []
         };
 
-        // 2. 過去の集計データを格納
         dailySummaryList.forEach(sum => {
             if (sum.date) {
                 dateMap[sum.date] = {
@@ -1025,9 +1147,11 @@
             }
         });
 
-        // 3. 全照合ログを該当する日付へ紐づけ
         allScans.forEach(item => {
             const dStr = item.date || todayStr;
+            if (!item.id) {
+                item.id = Date.now() + "_" + Math.random().toString(36).substr(2, 4);
+            }
             if (!dateMap[dStr]) {
                 dateMap[dStr] = {
                     date: dStr,
@@ -1040,7 +1164,6 @@
             dateMap[dStr].items.push(item);
         });
 
-        // 4. 日付の降順（新しい日付が上）にソート
         const sortedDates = Object.keys(dateMap).sort((a, b) => b.localeCompare(a));
 
         if (sortedDates.length === 0 || (sortedDates.length === 1 && dateMap[todayStr].items.length === 0 && dailyOkCount === 0 && dailyNgCount === 0)) {
@@ -1050,33 +1173,41 @@
 
         let html = "";
 
-        // 5. 日付ごとに「集計」→「照合明細」の順でHTMLを構築
+        // モード状態に応じてクラスを付与
+        if (isItemDeleteMode) {
+            historyArea.classList.add("item-delete-mode");
+        } else {
+            historyArea.classList.remove("item-delete-mode");
+        }
+
         sortedDates.forEach(dStr => {
             const group = dateMap[dStr];
             
-            // 履歴も集計もない日はスキップ
             if (group.items.length === 0 && group.ok === 0 && group.ng === 0) return;
 
             const headerTitle = group.isToday ? `【本日】 ${dStr}` : `📅 ${dStr}`;
 
             html += `<div class="history-day-block">`;
             
-            // ① 日別集計（先頭）
+            // 集計ヘッダー（削除ボタンなし）
             html += `
                 <div class="history-summary-header">
                     <strong>${headerTitle}</strong>
-                    <span style="color:#28a745; margin-left:8px;">⭕OK:${group.ok}</span>
-                    <span style="color:#dc3545; margin-left:8px;">❌NG:${group.ng}</span>
+                    <span style="color:#28a745; margin-left:6px;">⭕:${group.ok}</span>
+                    <span style="color:#dc3545; margin-left:4px;">❌:${group.ng}</span>
                 </div>
             `;
 
-            // ② その日の照合リスト（集計の直下に展開）
+            // その日の照合リスト（各アイテムの「✕」削除ボタン）
             if (group.items.length > 0) {
                 group.items.forEach(item => {
                     html += `
                         <div class="history-item ${item.result === '一致' ? 'ok' : 'ng'}">
-                            <strong>[${item.time}] ${item.result}</strong><br>
-                            1: ${item.code1} / 2: ${item.code2}
+                            <div>
+                                <strong>[${item.time}] ${item.result}</strong><br>
+                                1: ${item.code1} / 2: ${item.code2}
+                            </div>
+                            <button class="btn-delete-item" onclick="deleteSingleItem('${item.id}')" title="この明細を削除">✕</button>
                         </div>
                     `;
                 });
@@ -1202,17 +1333,30 @@
             flashTab(tabHistoryClear);
             
             const choice = await showHistoryClearModal();
-            if (choice === "today") {
-                scanHistory = [];
-                dailyOkCount = 0;
-                dailyNgCount = 0;
+            if (choice === "by-date") {
+                const todayStr = getTodayString();
+                const availableDates = Array.from(new Set([
+                    todayStr,
+                    ...scanHistory.map(i => i.date),
+                    ...pastScanHistory.map(i => i.date),
+                    ...dailySummaryList.map(s => s.date)
+                ].filter(Boolean))).sort((a, b) => b.localeCompare(a));
 
-                localStorage.removeItem("scanHistory");
-                localStorage.setItem("dailyOkCount", 0);
-                localStorage.setItem("dailyNgCount", 0);
+                if (availableDates.length === 0) {
+                    await showAppAlert("削除可能な日付データがありません。");
+                    return;
+                }
 
+                const selectedDate = await showDateSelectModal(availableDates);
+                if (selectedDate) {
+                    await deleteByDate(selectedDate);
+                }
+            } else if (choice === "by-item") {
+                isItemDeleteMode = !isItemDeleteMode; // フラグ切替
                 updateHistoryUI();
-                await showAppAlert("本日の履歴を削除しました。");
+                if (isItemDeleteMode) {
+                    await showAppAlert("各ログの右端に「✕」ボタンが表示されました。<br>削除したい明細を選択して下さい。<br>削除が終わったらもう一度「個別削除」を押して下さい。");
+                }
             } else if (choice === "other-months") {
                 const currentYM = getCurrentYearMonth();
 
