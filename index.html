@@ -1341,7 +1341,6 @@
         tabHistoryClear.addEventListener("click", async () => {
             flashTab(tabHistoryClear);
 
-            // 個別削除モード中に押された場合は削除モードを終了する
             if (isItemDeleteMode) {
                 setItemDeleteMode(false);
                 return;
@@ -1369,6 +1368,9 @@
                     await deleteByDate(selectedDate);
                 }
             } else if (choice === "other-months") {
+                const confirmed = await showAppConfirm("今月以外の履歴をすべて削除しますか？");
+                if (!confirmed) return;
+
                 const currentYM = getCurrentYearMonth();
 
                 pastScanHistory = pastScanHistory.filter(item => item.date && item.date.startsWith(currentYM));
@@ -1380,6 +1382,9 @@
                 updateHistoryUI();
                 await showAppAlert("今月以外の履歴を削除しました。");
             } else if (choice === "all") {
+                const confirmed = await showAppConfirm("すべての履歴を削除しますか？<br><span style='color:#dc3545; font-size:12px;'>※この操作は取り消せません。</span>");
+                if (!confirmed) return;
+
                 scanHistory = [];
                 pastScanHistory = [];
                 dailySummaryList = [];
