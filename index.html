@@ -23,10 +23,9 @@
         height: calc(var(--vh, 1vh) * 100);
         margin: 0;
         padding: 0;
-        overflow: hidden; /* 画面全体の余計なスクロールやバウンスを防止 */
+        overflow: hidden;
     }
 
-    /* アプリ全体を画面ぴったりに収める縦並びFlexコンテナ */
     body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         text-align: center;
@@ -36,7 +35,6 @@
         flex-direction: column;
     }
     
-    /* 上部タブバー（固定高） */
     .tab-bar {
         flex: 0 0 auto;
         display: flex; 
@@ -69,7 +67,6 @@
     .tab-item:active { transform: none; }
     .tab-item.active { color: #00aa44; border-bottom-color: #00aa44; background: #f0fff4; }
 
-    /* メインコンテンツエリア：画面の残り高さを一杯に使い、内部で縦並びにする */
     .container { 
         flex: 1;
         display: flex;
@@ -78,7 +75,7 @@
         max-width: 500px; 
         width: 100%;
         margin: 0 auto; 
-        overflow: hidden; /* 子要素の高さ調整を有効化 */
+        overflow: hidden;
     }
 
 #start-audio-btn {
@@ -115,7 +112,6 @@
     font-size: 14px; color: #555; margin: 0 0 8px 0; font-weight: bold; 
 }
 
-/* カメラビューポート */
 #interactive.viewport {
     flex: 0 0 auto;
     width: 100%; aspect-ratio: 16 / 9; height: auto;
@@ -155,7 +151,6 @@
 
 .scan-area-guide.ng { border-color: #ff0000; box-shadow: 0 0 15px rgba(255,0,0,0.8); }
 
-    /* スキャン結果表示エリア */
     .result-box { 
         flex: 0 0 auto;
         display: flex; justify-content: space-between; margin: 10px 0; gap: 10px; 
@@ -176,7 +171,6 @@
     .code-display.match { background: #d4edda; border-color: #28a745; }
     .code-display.mismatch { background: #f8d7da; border-color: #dc3545; }
 
-    /* 各種操作ボタン（固定高） */
     button.action-btn {
         flex: 0 0 auto;
         width: 100%; padding: 12px; font-size: 18px; font-weight: bold; margin: 4px 0 8px 0; cursor: pointer;
@@ -193,38 +187,46 @@
         box-shadow: 0 4px 0 #1B5E20; cursor: pointer;
     }
 
-    /* ★履歴カード全体（余りの縦スペースをすべて使って自動伸縮）★ */
     .history-card {
-        flex: 1; /* iPad等で余った高さをすべて占有 */
+        flex: 1;
         display: flex;
         flex-direction: column;
         background: #ffffff; border-radius: 12px; padding: 12px; margin-top: 4px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.06); text-align: left; border: 1px solid #e2e8f0;
-        min-height: 100px; /* 最小高さを確保 */
+        min-height: 100px;
         overflow: hidden;
     }
-    
-    .history-card-header {
-        flex: 0 0 auto;
-        font-size: 14px; font-weight: bold; color: #444; border-bottom: 1px solid #eee;
-        padding-bottom: 6px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
-    }
 
-    /* ★履歴スクロールエリア（親の高さに合わせて可変＆内部でスクロール）★ */
     #history-area { 
         flex: 1;
         height: 100%;
-        max-height: none; /* 固定値制限を解除 */
+        max-height: none;
         overflow-y: auto; 
-        -webkit-overflow-scrolling: touch; /* iOSスルスルスクロール */
+        -webkit-overflow-scrolling: touch;
         font-size: 13px; line-height: 1.5; 
     }
 
-    .history-item { padding: 6px 8px; margin-bottom: 6px; border-radius: 6px; font-size: 12px; }
+    .history-day-block {
+        margin-bottom: 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #fff;
+    }
+
+    .history-summary-header {
+        background: #f0f4f8;
+        padding: 6px 8px;
+        font-weight: bold;
+        text-align: center;
+        border-bottom: 1px solid #cbd5e1;
+        font-size: 11px;
+    }
+
+    .history-item { padding: 6px 8px; margin: 4px 6px; border-radius: 6px; font-size: 12px; }
     .history-item.ok { background: #eaf8ea; border-left: 4px solid #28a745; }
     .history-item.ng { background: #fdeaea; border-left: 4px solid #dc3545; }
 
-    /* モーダル表示群 */
     .modal-overlay {
         display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0, 0, 0, 0.5); justify-content: center; align-items: center;
@@ -305,7 +307,6 @@
         </div>
     </div>
 
-    <!-- カスタム汎用モーダル -->
     <div id="custom-modal-overlay" class="modal-overlay">
         <div class="modal-box">
             <div id="custom-modal-msg"></div>
@@ -316,7 +317,6 @@
         </div>
     </div>
 
-    <!-- 履歴削除モーダル -->
     <div id="clear-modal-overlay" class="modal-overlay">
         <div class="modal-box">
             <h3 style="margin-top:0;">🗑️ 履歴削除</h3>
@@ -330,7 +330,6 @@
         </div>
     </div>
 
-    <!-- マスターCSVモーダル -->
     <div id="master-csv-modal" class="modal-overlay">
         <div class="modal-box">
             <h3>📂 マスターCSV設定</h3>
@@ -368,7 +367,6 @@
     let masterDataMap = {};
     let scanHistory = [];
 
-    // AR追従枠用変数
     let overlayCanvas = null;
     let overlayCtx = null;
     let currentPoints = null;       
@@ -376,20 +374,17 @@
     let lastDetectTime = 0;         
     let animationFrameId = null;    
 
-    // 日別集計・過去全履歴用変数
     let dailyOkCount = 0;
     let dailyNgCount = 0;
     let dailySummaryList = [];
     let pastScanHistory = []; 
     let currentTodayStr = "";
 
-    // 自動リロード監視用変数
     let lastVideoTime = -1;
     let freezeCheckInterval = null;
     let inactivityTimer = null;
     const INACTIVITY_LIMIT_MS = 5 * 60 * 1000;
 
-    // 音声オブジェクト
     const audioMap = {
         scan: new Audio('scan.mp3'),
         pingpong: new Audio('pingpong.mp3'),
@@ -998,45 +993,99 @@
         clearOverlayCanvas();
     }
 
+    // ★ 日付ごとに「集計」→「照合リスト」の順番で表示する処理 ★
     function updateHistoryUI() {
         if (!historyArea) return;
 
-        let html = `
-            <div style="background:#f0f4f8; padding:6px 4px; border-radius:6px; margin-bottom:8px; font-weight:bold; text-align:center; border:1px solid #cbd5e1; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                【本日】<span style="color:#28a745; margin:0 4px;">⭕OK:${dailyOkCount}</span> <span style="color:#dc3545; margin:0 4px;">❌NG:${dailyNgCount}</span> <span style="color:#666; font-size:10px;">(${getTodayString()})</span>
-            </div>
-        `;
+        const todayStr = getTodayString();
+        const allScans = [...scanHistory, ...pastScanHistory];
+        
+        // 日付ごとのマップ構造を作成
+        const dateMap = {};
 
-        if (scanHistory.length === 0) {
-            html += "<div style='color:#888; text-align:center; padding:4px; font-size:11px;'>（本日の履歴なし）</div>";
-        } else {
-            html += scanHistory.map(item => `
-                <div class="history-item ${item.result === '一致' ? 'ok' : 'ng'}">
-                    <strong>[${item.time}] ${item.result}</strong><br>
-                    1: ${item.code1} / 2: ${item.code2}
-                </div>
-            `).join("");
+        // 1. 本日分の初期化
+        dateMap[todayStr] = {
+            date: todayStr,
+            isToday: true,
+            ok: dailyOkCount,
+            ng: dailyNgCount,
+            items: []
+        };
+
+        // 2. 過去の集計データを格納
+        dailySummaryList.forEach(sum => {
+            if (sum.date) {
+                dateMap[sum.date] = {
+                    date: sum.date,
+                    isToday: false,
+                    ok: sum.ok,
+                    ng: sum.ng,
+                    items: []
+                };
+            }
+        });
+
+        // 3. 全照合ログを該当する日付へ紐づけ
+        allScans.forEach(item => {
+            const dStr = item.date || todayStr;
+            if (!dateMap[dStr]) {
+                dateMap[dStr] = {
+                    date: dStr,
+                    isToday: (dStr === todayStr),
+                    ok: 0,
+                    ng: 0,
+                    items: []
+                };
+            }
+            dateMap[dStr].items.push(item);
+        });
+
+        // 4. 日付の降順（新しい日付が上）にソート
+        const sortedDates = Object.keys(dateMap).sort((a, b) => b.localeCompare(a));
+
+        if (sortedDates.length === 0 || (sortedDates.length === 1 && dateMap[todayStr].items.length === 0 && dailyOkCount === 0 && dailyNgCount === 0)) {
+            historyArea.innerHTML = "<div style='color:#888; text-align:center; padding:12px; font-size:12px;'>（照合履歴はありません）</div>";
+            return;
         }
 
-        if (dailySummaryList.length > 0) {
-            html += `<div style="font-weight:bold; margin:10px 0 4px 0; color:#555; border-top:1px dashed #ccc; padding-top:6px; font-size:11px;">■ 過去の日別集計</div>`;
-            html += dailySummaryList.map(sum => `
-                <div style="background:#fff; border:1px solid #e2e8f0; padding:4px 8px; margin-bottom:3px; border-radius:4px; display:flex; justify-content:space-between; font-size:11px;">
-                    <span>📅 <strong>${sum.date}</strong></span>
-                    <span>⭕ <strong>${sum.ok}</strong> / ❌ <strong>${sum.ng}</strong></span>
-                </div>
-            `).join("");
-        }
+        let html = "";
 
-        if (pastScanHistory.length > 0) {
-            html += `<div style="font-weight:bold; margin:10px 0 4px 0; color:#555; border-top:1px dashed #ccc; padding-top:6px; font-size:11px;">■ 過去の照合リスト</div>`;
-            html += pastScanHistory.map(item => `
-                <div class="history-item ${item.result === '一致' ? 'ok' : 'ng'}" style="opacity:0.85;">
-                    <strong>[${item.date || ''} ${item.time}] ${item.result}</strong><br>
-                    1: ${item.code1} / 2: ${item.code2}
+        // 5. 日付ごとに「集計」→「照合明細」の順でHTMLを構築
+        sortedDates.forEach(dStr => {
+            const group = dateMap[dStr];
+            
+            // 履歴も集計もない日はスキップ
+            if (group.items.length === 0 && group.ok === 0 && group.ng === 0) return;
+
+            const headerTitle = group.isToday ? `【本日】 ${dStr}` : `📅 ${dStr}`;
+
+            html += `<div class="history-day-block">`;
+            
+            // ① 日別集計（先頭）
+            html += `
+                <div class="history-summary-header">
+                    <strong>${headerTitle}</strong>
+                    <span style="color:#28a745; margin-left:8px;">⭕OK:${group.ok}</span>
+                    <span style="color:#dc3545; margin-left:8px;">❌NG:${group.ng}</span>
                 </div>
-            `).join("");
-        }
+            `;
+
+            // ② その日の照合リスト（集計の直下に展開）
+            if (group.items.length > 0) {
+                group.items.forEach(item => {
+                    html += `
+                        <div class="history-item ${item.result === '一致' ? 'ok' : 'ng'}">
+                            <strong>[${item.time}] ${item.result}</strong><br>
+                            1: ${item.code1} / 2: ${item.code2}
+                        </div>
+                    `;
+                });
+            } else {
+                html += `<div style="color:#aaa; text-align:center; padding:4px; font-size:11px;">（明細なし）</div>`;
+            }
+
+            html += `</div>`;
+        });
 
         historyArea.innerHTML = html;
     }
@@ -1149,7 +1198,6 @@
             }
         });
 
-        // 履歴削除：選択肢モーダルを表示
         tabHistoryClear.addEventListener("click", async () => {
             flashTab(tabHistoryClear);
             
@@ -1168,9 +1216,7 @@
             } else if (choice === "other-months") {
                 const currentYM = getCurrentYearMonth();
 
-                // 過去スキャン履歴から当月以外のデータを削除
                 pastScanHistory = pastScanHistory.filter(item => item.date && item.date.startsWith(currentYM));
-                // 日別集計から当月以外のデータを削除
                 dailySummaryList = dailySummaryList.filter(sum => sum.date && sum.date.startsWith(currentYM));
 
                 localStorage.setItem("pastScanHistory", JSON.stringify(pastScanHistory));
