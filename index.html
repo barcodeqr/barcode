@@ -236,7 +236,7 @@
     .history-item.ng { background: #fdeaea; border-left: 4px solid #dc3545; }
 
     .btn-delete-item {
-        display: none; /* 初期状態は非表示 */
+        display: none;
         background: #dc3545;
         color: #fff;
         border: none;
@@ -251,7 +251,6 @@
         text-align: center;
     }
     
-    /* 個別削除モードの時に「✕」ボタンを表示 */
     .item-delete-mode .btn-delete-item {
         display: inline-block;
     }
@@ -352,8 +351,8 @@
             <h3 style="margin-top:0;">🗑️ 履歴削除</h3>
             <p style="font-size:14px; color:#555;">削除する対象を選択してください。</p>
             <div class="modal-buttons" style="flex-direction: column;">
-                <button id="clear-by-date-btn" class="modal-btn modal-btn-ok" style="width:100%;">日別を選択して削除</button>
                 <button id="clear-by-item-btn" class="modal-btn modal-btn-ok" style="width:100%; background:#28a745;">個別を選択して削除</button>
+                <button id="clear-by-date-btn" class="modal-btn modal-btn-ok" style="width:100%;">日別を選択して削除</button>
                 <button id="clear-other-months-btn" class="modal-btn modal-btn-warning" style="width:100%;">今月以外の履歴を削除</button>
                 <button id="clear-all-btn" class="modal-btn modal-btn-danger" style="width:100%;">すべての履歴を削除</button>
                 <button id="clear-cancel-btn" class="modal-btn modal-btn-cancel" style="width:100%;">キャンセル</button>
@@ -396,7 +395,7 @@
     let videoElement = null;
     let codeReader = null;
 
-    let isItemDeleteMode = false; // 個別削除モード状態フラグ
+    let isItemDeleteMode = false;
 
     let lastCandidateCode = null;
     let matchCount = 0;
@@ -1173,7 +1172,6 @@
 
         let html = "";
 
-        // モード状態に応じてクラスを付与
         if (isItemDeleteMode) {
             historyArea.classList.add("item-delete-mode");
         } else {
@@ -1189,7 +1187,6 @@
 
             html += `<div class="history-day-block">`;
             
-            // 集計ヘッダー（削除ボタンなし）
             html += `
                 <div class="history-summary-header">
                     <strong>${headerTitle}</strong>
@@ -1198,7 +1195,6 @@
                 </div>
             `;
 
-            // その日の照合リスト（各アイテムの「✕」削除ボタン）
             if (group.items.length > 0) {
                 group.items.forEach(item => {
                     html += `
@@ -1246,6 +1242,19 @@
         ctx.drawImage(videoElement, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
 
         return cropCanvas;
+    }
+
+    function setItemDeleteMode(active) {
+        isItemDeleteMode = active;
+        const tabHistoryClear = document.getElementById("tab-history-clear");
+        if (isItemDeleteMode) {
+            tabHistoryClear.textContent = "削除終了";
+            tabHistoryClear.style.color = "#dc3545";
+        } else {
+            tabHistoryClear.textContent = "履歴削除";
+            tabHistoryClear.style.color = "";
+        }
+        updateHistoryUI();
     }
 
     function setupTabs() {
@@ -1331,9 +1340,17 @@
 
         tabHistoryClear.addEventListener("click", async () => {
             flashTab(tabHistoryClear);
+
+            // 個別削除モード中に押された場合は削除モードを終了する
+            if (isItemDeleteMode) {
+                setItemDeleteMode(false);
+                return;
+            }
             
             const choice = await showHistoryClearModal();
-            if (choice === "by-date") {
+            if (choice === "by-item") {
+                setItemDeleteMode(true);
+            } else if (choice === "by-date") {
                 const todayStr = getTodayString();
                 const availableDates = Array.from(new Set([
                     todayStr,
@@ -1350,12 +1367,6 @@
                 const selectedDate = await showDateSelectModal(availableDates);
                 if (selectedDate) {
                     await deleteByDate(selectedDate);
-                }
-            } else if (choice === "by-item") {
-                isItemDeleteMode = !isItemDeleteMode; // フラグ切替
-                updateHistoryUI();
-                if (isItemDeleteMode) {
-                    await showAppAlert("各ログの右端に「✕」ボタンが表示されました。<br>削除したい明細を選択して下さい。<br>削除が終わったらもう一度「個別削除」を押して下さい。");
                 }
             } else if (choice === "other-months") {
                 const currentYM = getCurrentYearMonth();
