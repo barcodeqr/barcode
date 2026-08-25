@@ -444,6 +444,14 @@
         return `${now.getFullYear()}/${(now.getMonth()+1).toString().padStart(2,'0')}`;
     }
 
+    function getWeekdayStr(dateStr) {
+        if (!dateStr) return "";
+        const d = new Date(dateStr.replace(/\//g, "-"));
+        if (isNaN(d.getTime())) return "";
+        const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
+        return `/(${weekdays[d.getDay()]})`;
+    }
+
     function checkAndRollDailySummary() {
         const today = getTodayString();
         if (currentTodayStr && currentTodayStr !== today) {
@@ -621,7 +629,7 @@
             const execBtn = document.getElementById("date-select-exec-btn");
             const cancelBtn = document.getElementById("date-select-cancel-btn");
 
-            dropdown.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join("");
+            dropdown.innerHTML = dates.map(d => `<option value="${d}">${d}${getWeekdayStr(d)}</option>`).join("");
             overlay.style.display = "flex";
 
             const handleExec = () => { cleanup(); resolve(dropdown.value); };
@@ -1066,7 +1074,8 @@
     }
 
     async function deleteByDate(targetDate) {
-        const confirmed = await showAppConfirm(`${targetDate} の履歴・集計をすべて削除しますか？`);
+        const weekdayStr = getWeekdayStr(targetDate);
+        const confirmed = await showAppConfirm(`${targetDate}${weekdayStr} の履歴・集計をすべて削除しますか？`);
         if (!confirmed) return;
 
         const todayStr = getTodayString();
@@ -1085,7 +1094,7 @@
         }
 
         updateHistoryUI();
-        await showAppAlert(`${targetDate} の履歴を削除しました。`);
+        await showAppAlert(`${targetDate}${weekdayStr} の履歴を削除しました。`);
     }
 
     function deleteSingleItem(itemId) {
@@ -1183,7 +1192,8 @@
             
             if (group.items.length === 0 && group.ok === 0 && group.ng === 0) return;
 
-            const headerTitle = group.isToday ? `【本日】 ${dStr}` : `📅 ${dStr}`;
+            const weekdayStr = getWeekdayStr(dStr);
+            const headerTitle = group.isToday ? `【本日】 ${dStr}${weekdayStr}` : `📅 ${dStr}${weekdayStr}`;
 
             html += `<div class="history-day-block">`;
             
@@ -1318,7 +1328,8 @@
                 allHistory.forEach(row => {
                     const c1 = (row.code1 || "").replace(/"/g, '""');
                     const c2 = (row.code2 || "").replace(/"/g, '""');
-                    csvContent += `${row.date || ''},${row.time},${row.result},"${c1}","${c2}"\n`;
+                    const wStr = getWeekdayStr(row.date);
+                    csvContent += `${row.date || ''}${wStr},${row.time},${row.result},"${c1}","${c2}"\n`;
                 });
 
                 const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
