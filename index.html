@@ -1102,10 +1102,10 @@
             box2.classList.add("mismatch");
             dailyNgCount++;
             
-            // NG時: シュー音の余韻（約200ms）が終わった後にぶぶぶー音を鳴らす
+            // NG時: シュー音の余韻（約400ms）が終わった後にぶぶぶー音を鳴らす
             setTimeout(() => {
                 playBuBuBuSound();
-            }, 200);
+            }, 400);
         }
 
         localStorage.setItem("dailyOkCount", dailyOkCount);
