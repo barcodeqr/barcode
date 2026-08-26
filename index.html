@@ -270,6 +270,7 @@
     .modal-btn-danger { background: #dc3545; color: #fff; }
     .modal-btn-cancel { background: #888; color: #fff; }
 
+    #csv-export-modal { z-index: 10000; }
     #master-csv-modal { z-index: 10000; }
     #date-select-modal-overlay { z-index: 20000; }
     #custom-modal-overlay { z-index: 20000; }
@@ -367,6 +368,27 @@
             <div class="modal-buttons" style="margin-top:15px;">
                 <button id="date-select-exec-btn" class="modal-btn modal-btn-danger">削除</button>
                 <button id="date-select-cancel-btn" class="modal-btn modal-btn-cancel">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1. CSV出力用モーダル（追加） -->
+    <div id="csv-export-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h3 style="margin-top:0;">📊 CSV出力</h3>
+            <p style="font-size: 13px; color: #555; margin: 10px 0;">
+                照合履歴のデータをCSV形式でダウンロードします。
+            </p>
+            <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 8px;">
+                <button id="download-today-csv-btn" class="modal-btn modal-btn-ok" style="width:100%; padding:10px; font-size:14px;">
+                    本日の履歴をダウンロード
+                </button>
+                <button id="download-all-csv-btn" class="modal-btn modal-btn-ok" style="width:100%; padding:10px; font-size:14px; background:#6c757d;">
+                    全履歴をダウンロード
+                </button>
+                <button id="close-csv-export-modal-btn" class="modal-btn modal-btn-cancel" style="width:100%; margin-top:5px;">
+                    閉じる
+                </button>
             </div>
         </div>
     </div>
@@ -1267,6 +1289,41 @@
         updateHistoryUI();
     }
 
+    // CSV出力処理用の関数（新規追加）
+    function exportHistoryToCSV(isAll) {
+        const targetHistory = isAll ? [...scanHistory, ...pastScanHistory] : scanHistory;
+
+        if (!targetHistory || targetHistory.length === 0) {
+            showAppAlert(isAll ? "出力する全履歴がありません。" : "本日の出力する履歴がありません。");
+            return;
+        }
+
+        let csvContent = "\uFEFF日付,時間,結果,1つ目,2つ目\n";
+        targetHistory.forEach(row => {
+            const c1 = (row.code1 || "").replace(/"/g, '""');
+            const c2 = (row.code2 || "").replace(/"/g, '""');
+            const wStr = getWeekdayStr(row.date);
+            csvContent += `${row.date || ''}${wStr},${row.time},${row.result},"${c1}","${c2}"\n`;
+        });
+
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = url;
+        const filename = isAll ? "照合履歴_全データ.csv" : `照合履歴_${getTodayString().replace(/\//g, '')}.csv`;
+        link.setAttribute("download", filename);
+        
+        document.body.appendChild(link);
+        link.click();
+        
+        setTimeout(() => {
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }, 100);
+    }
+
+    // 2. JavaScript部分の修正（タブ設定＆モーダル紐付け）
     function setupTabs() {
         const tabBarcode = document.getElementById("tab-barcode");
         const tabOcr = document.getElementById("tab-ocr");
@@ -1274,12 +1331,8 @@
         const tabHistoryClear = document.getElementById("tab-history-clear");
         const tabMasterCsv = document.getElementById("tab-master-csv");
 
-        function flashTab(tabElem) {
-            tabElem.classList.add("active");
-            setTimeout(() => {
-                tabElem.classList.remove("active");
-            }, 300);
-        }
+        const csvExportModal = document.getElementById("csv-export-modal");
+        const masterCsvModal = document.getElementById("master-csv-modal");
 
         tabBarcode.addEventListener("click", () => {
             tabBarcode.classList.add("active");
@@ -1313,45 +1366,13 @@
             resetScan();
         });
 
-        tabCsvExport.addEventListener("click", async () => {
-            flashTab(tabCsvExport);
-            const allHistory = [...scanHistory, ...pastScanHistory];
-            
-            if (allHistory.length === 0) {
-                await showAppAlert("出力する履歴がありません。");
-                return;
-            }
-
-            const confirmed = await showAppConfirm(`全${allHistory.length}件の照合履歴をCSV出力しますか？`);
-            if (confirmed) {
-                let csvContent = "\uFEFF日付,時間,結果,1つ目,2つ目\n";
-                allHistory.forEach(row => {
-                    const c1 = (row.code1 || "").replace(/"/g, '""');
-                    const c2 = (row.code2 || "").replace(/"/g, '""');
-                    const wStr = getWeekdayStr(row.date);
-                    csvContent += `${row.date || ''}${wStr},${row.time},${row.result},"${c1}","${c2}"\n`;
-                });
-
-                const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-                const url = URL.createObjectURL(blob);
-
-                const link = document.createElement("a");
-                link.href = url;
-                link.setAttribute("download", "照合履歴.csv");
-                
-                document.body.appendChild(link);
-                link.click();
-                
-                setTimeout(() => {
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
-                }, 100);
-            }
+        // CSV出力タブ：モーダルを表示
+        tabCsvExport.addEventListener("click", () => {
+            csvExportModal.style.display = "flex";
         });
 
+        // 履歴削除タブ
         tabHistoryClear.addEventListener("click", async () => {
-            flashTab(tabHistoryClear);
-
             if (isItemDeleteMode) {
                 setItemDeleteMode(false);
                 return;
@@ -1413,14 +1434,28 @@
             }
         });
 
+        // マスターCSVタブ：モーダルを表示
         tabMasterCsv.addEventListener("click", () => {
-            tabMasterCsv.classList.add("active");
-            document.getElementById("master-csv-modal").style.display = "flex";
+            masterCsvModal.style.display = "flex";
+        });
+
+        // モーダル閉じる・実行ボタンのイベント listener
+        document.getElementById("close-csv-export-modal-btn").addEventListener("click", () => {
+            csvExportModal.style.display = "none";
+        });
+
+        document.getElementById("download-today-csv-btn").addEventListener("click", () => {
+            csvExportModal.style.display = "none";
+            exportHistoryToCSV(false);
+        });
+
+        document.getElementById("download-all-csv-btn").addEventListener("click", () => {
+            csvExportModal.style.display = "none";
+            exportHistoryToCSV(true);
         });
 
         document.getElementById("close-master-modal-btn").addEventListener("click", () => {
-            tabMasterCsv.classList.remove("active");
-            document.getElementById("master-csv-modal").style.display = "none";
+            masterCsvModal.style.display = "none";
         });
     }
 
