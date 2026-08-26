@@ -372,7 +372,6 @@
         </div>
     </div>
 
-    <!-- 1. CSV出力用モーダル（追加） -->
     <div id="csv-export-modal" class="modal-overlay">
         <div class="modal-box">
             <h3 style="margin-top:0;">📊 CSV出力</h3>
@@ -1289,7 +1288,6 @@
         updateHistoryUI();
     }
 
-    // CSV出力処理用の関数（新規追加）
     function exportHistoryToCSV(isAll) {
         const targetHistory = isAll ? [...scanHistory, ...pastScanHistory] : scanHistory;
 
@@ -1323,7 +1321,6 @@
         }, 100);
     }
 
-    // 2. JavaScript部分の修正（タブ設定＆モーダル紐付け）
     function setupTabs() {
         const tabBarcode = document.getElementById("tab-barcode");
         const tabOcr = document.getElementById("tab-ocr");
@@ -1366,12 +1363,10 @@
             resetScan();
         });
 
-        // CSV出力タブ：モーダルを表示
         tabCsvExport.addEventListener("click", () => {
             csvExportModal.style.display = "flex";
         });
 
-        // 履歴削除タブ
         tabHistoryClear.addEventListener("click", async () => {
             if (isItemDeleteMode) {
                 setItemDeleteMode(false);
@@ -1434,12 +1429,10 @@
             }
         });
 
-        // マスターCSVタブ：モーダルを表示
         tabMasterCsv.addEventListener("click", () => {
             masterCsvModal.style.display = "flex";
         });
 
-        // モーダル閉じる・実行ボタンのイベント listener
         document.getElementById("close-csv-export-modal-btn").addEventListener("click", () => {
             csvExportModal.style.display = "none";
         });
@@ -1505,9 +1498,20 @@
 
                 const reader = new FileReader();
                 reader.onload = function(event) {
-                    parseCSVData(event.target.result);
+                    const buffer = event.target.result;
+                    let text = "";
+                    
+                    try {
+                        const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
+                        text = utf8Decoder.decode(buffer);
+                    } catch (err) {
+                        const sjisDecoder = new TextDecoder("shift-jis");
+                        text = sjisDecoder.decode(buffer);
+                    }
+                    
+                    parseCSVData(text);
                 };
-                reader.readAsText(file, "Shift_JIS");
+                reader.readAsArrayBuffer(file);
             });
         }
 
