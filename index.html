@@ -34,7 +34,7 @@
         border-bottom: 2px solid #e0e0e0; position: sticky; top: 0; z-index: 1000; 
         box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow-x: auto; white-space: nowrap;
         -webkit-overflow-scrolling: touch;
-        justify-content: center; /* ← PC画面で中央寄せにするプロパティを追加 */
+        justify-content: center; /* PC画面でタブを中央寄せ */
     } 
    
     .tab-item {
@@ -382,9 +382,55 @@
 
     const audioMap = {
         scan: new Audio('scan.mp3'),
-        pingpong: new Audio('pingpong.mp3'),
         boo: new Audio('boo.mp3')
     };
+
+    // OK時の効果音再生（余韻あり3連ピンポーン♪）
+    function playOkSound() {
+        setTimeout(() => {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const times = [0, 0.38, 0.76]; // 3回鳴らすタイミング
+            
+            times.forEach(delay => {
+                const pinTime = ctx.currentTime + delay;
+                const ponTime = pinTime + 0.12;
+
+                // 1. ピン（2音和音: E6 + G#6）※余韻0.8秒
+                [1318.51, 1661.22].forEach(freq => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, pinTime);
+                    
+                    gain.gain.setValueAtTime(0.4, pinTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, pinTime + 0.8);
+                    
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    
+                    osc.start(pinTime);
+                    osc.stop(pinTime + 0.8);
+                });
+
+                // 2. ポン（C6）※余韻0.9秒
+                const oscPon = ctx.createOscillator();
+                const gainPon = ctx.createGain();
+                
+                oscPon.type = 'triangle';
+                oscPon.frequency.setValueAtTime(1046.50, ponTime);
+                
+                gainPon.gain.setValueAtTime(0.7, ponTime);
+                gainPon.gain.exponentialRampToValueAtTime(0.001, ponTime + 0.9);
+                
+                oscPon.connect(gainPon);
+                gainPon.connect(ctx.destination);
+                
+                oscPon.start(ponTime);
+                oscPon.stop(ponTime + 0.9);
+            });
+        }, 500);
+    }
 
     function getTodayString() {
         const now = new Date();
@@ -968,7 +1014,7 @@
             box1.classList.add("match");
             box2.classList.add("match");
             dailyOkCount++;
-            playAudio('pingpong', 500); 
+            playOkSound(); // OK時に3連ピンポーン（余韻あり）を再生
         } else {
             scanResult.textContent = "NG";
             scanResult.className = "ng";
