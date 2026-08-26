@@ -277,9 +277,27 @@
     #clear-modal-overlay { z-index: 20000; }
 
     .csv-upload-box {
-        text-align: left; background: #f8f9fa; border: 2px dashed #007aff; border-radius: 8px; padding: 12px; margin-top: 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
     }
-    .csv-status { font-size: 12px; font-weight: bold; margin-top: 6px; color: #007aff; }
+    .custom-file-btn {
+        display: inline-block;
+        padding: 6px 12px;
+        background-color: #007aff;
+        color: #ffffff;
+        border-radius: 4px;
+        font-size: 14px;
+        cursor: pointer;
+        user-select: none;
+    }
+    .custom-file-btn:hover {
+        background-color: #0056b3;
+    }
+    .csv-status {
+        font-size: 14px;
+        color: #333333;
+    }
 
     .flying-tile {
         position: fixed; z-index: 9999; pointer-events: none; background: transparent !important;
@@ -396,8 +414,9 @@
         <div class="modal-box">
             <h3>📂 マスターCSV設定</h3>
             <div class="csv-upload-box">
-                <input type="file" id="csv-file-input" accept=".csv" style="width:100%;">
-                <div id="csv-status" class="csv-status">ファイル未選択</div>
+                <label for="csv-file-input" class="custom-file-btn">ファイルを選択</label>
+                <input type="file" id="csv-file-input" accept=".csv" style="display:none;">
+                <span id="csv-status" class="csv-status">ファイル未選択</span>
             </div>
             <div style="margin-top: 15px; display: flex; gap: 8px; justify-content: center;">
                 <button id="clear-csv-btn" style="background:#888; color:#fff; border:none; padding:8px 12px; border-radius:6px; font-weight:bold; cursor:pointer;">データ消去</button>
@@ -1491,29 +1510,34 @@
 
         resetBtn.addEventListener("click", resetScan);
 
-        if (csvInput) {
-            csvInput.addEventListener("change", function(e) {
-                const file = e.target.files[0];
-                if (!file) return;
+        document.getElementById('csv-file-input').addEventListener('change', function(e) {
+            const status = document.getElementById('csv-status');
+            if (e.target.files.length > 0) {
+                status.textContent = e.target.files[0].name;
+            } else {
+                status.textContent = "ファイル未選択";
+            }
 
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    const buffer = event.target.result;
-                    let text = "";
-                    
-                    try {
-                        const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
-                        text = utf8Decoder.decode(buffer);
-                    } catch (err) {
-                        const sjisDecoder = new TextDecoder("shift-jis");
-                        text = sjisDecoder.decode(buffer);
-                    }
-                    
-                    parseCSVData(text);
-                };
-                reader.readAsArrayBuffer(file);
-            });
-        }
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const buffer = event.target.result;
+                let text = "";
+                
+                try {
+                    const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
+                    text = utf8Decoder.decode(buffer);
+                } catch (err) {
+                    const sjisDecoder = new TextDecoder("shift-jis");
+                    text = sjisDecoder.decode(buffer);
+                }
+                
+                parseCSVData(text);
+            };
+            reader.readAsArrayBuffer(file);
+        });
 
         if (clearCsvBtn) {
             clearCsvBtn.addEventListener("click", async () => {
@@ -1523,8 +1547,8 @@
                     localStorage.removeItem("masterDataTime");
                     masterDataMap = {};
                     if (csvStatus) {
-                        csvStatus.innerHTML = "未読み込み";
-                        csvStatus.style.color = "#888";
+                        csvStatus.innerHTML = "ファイル未選択";
+                        csvStatus.style.color = "#007aff";
                     }
                     await showAppAlert("マスターデータをクリアしました。");
                 }
