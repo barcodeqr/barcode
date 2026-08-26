@@ -380,15 +380,117 @@
 
     let qrcodeObj = null;
 
-    const audioMap = {
-        scan: new Audio('scan.mp3'),
-        boo: new Audio('boo.mp3')
-    };
+    let globalAudioCtx = null;
+
+    function getAudioContext() {
+        if (!globalAudioCtx) {
+            globalAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (globalAudioCtx.state === 'suspended') {
+            globalAudioCtx.resume();
+        }
+        return globalAudioCtx;
+    }
+
+    // ノイズバッファーの生成（ホワイトノイズ）
+    function createNoiseBuffer(ctx, duration) {
+        const bufferSize = ctx.sampleRate * duration;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1;
+        }
+        return buffer;
+    }
+
+    // 「シュッ・ポン」読み取り音再生（最大音量）
+    function playSuuPopSound() {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        const duration = 0.18;
+
+        const masterGain = ctx.createGain();
+        masterGain.gain.setValueAtTime(1.0, now);
+        masterGain.connect(ctx.destination);
+
+        // 1. シュッ（ノイズによる吸い込み音）
+        const noise = ctx.createBufferSource();
+        noise.buffer = createNoiseBuffer(ctx, duration);
+
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(500, now);
+        filter.frequency.exponentialRampToValueAtTime(4500, now + duration);
+        filter.Q.value = 2.0;
+
+        const noiseGain = ctx.createGain();
+        noiseGain.gain.setValueAtTime(0.2, now);
+        noiseGain.gain.linearRampToValueAtTime(1.0, now + duration - 0.03);
+        noiseGain.gain.exponentialRampToValueAtTime(0.01, now + duration);
+
+        noise.connect(filter);
+        filter.connect(noiseGain);
+        noiseGain.connect(masterGain);
+        noise.start(now);
+
+        // 2. ポン（オシレーターによる着地音）
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1400, now + duration - 0.02);
+        osc.frequency.exponentialRampToValueAtTime(350, now + duration + 0.08);
+
+        oscGain.gain.setValueAtTime(1.0, now + duration - 0.02);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, now + duration + 0.08);
+
+        osc.connect(oscGain);
+        oscGain.connect(masterGain);
+
+        osc.start(now + duration - 0.02);
+        osc.stop(now + duration + 0.08);
+    }
+
+    // 「ぶ・ぶ・ぶーー」（NG判定音・最大音量）
+    function playBuBuBuSound() {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        
+        // 音の要素（開始相対時間, 持続時間）
+        const notes = [
+            { time: 0.0,  duration: 0.12 }, // ぶ
+            { time: 0.18, duration: 0.12 }, // ぶ
+            { time: 0.36, duration: 0.50 }  // ぶーー
+        ];
+
+        notes.forEach(note => {
+            const startTime = now + note.time;
+            const stopTime = startTime + note.duration;
+
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            // 低い鋸波（ブザー音風）
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(120, startTime);
+
+            // 最大音量設定（1.0）
+            gain.gain.setValueAtTime(1.0, startTime);
+            gain.gain.setValueAtTime(1.0, stopTime - 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, stopTime);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.start(startTime);
+            osc.stop(stopTime);
+        });
+    }
 
     // OK時の効果音再生（余韻あり3連ピンポーン♪）
     function playOkSound() {
         setTimeout(() => {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const ctx = getAudioContext();
             const times = [0, 0.38, 0.76]; // 3回鳴らすタイミング
             
             times.forEach(delay => {
@@ -477,35 +579,8 @@
         document.documentElement.style.setProperty('--vh', `${vh}px`);
     }
 
-    function playAudio(key, delay = 0, startTime = 0, duration = null) {
-        setTimeout(() => {
-            const audio = audioMap[key];
-            if (audio) {
-                audio.currentTime = startTime;
-                const playPromise = audio.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch(e => console.warn("Audio play blocked:", e));
-                }
-                if (duration) {
-                    setTimeout(() => {
-                        audio.pause();
-                        audio.currentTime = 0;
-                    }, duration);
-                }
-            }
-        }, delay);
-    }
-
     function unlockAudioContext() {
-        Object.keys(audioMap).forEach(key => {
-            const a = audioMap[key];
-            a.volume = 0.01;
-            a.play().then(() => {
-                a.pause();
-                a.currentTime = 0;
-                a.volume = 1.0;
-            }).catch(() => {});
-        });
+        getAudioContext();
     }
 
     function triggerFlyAnimation(targetBox, textVal) {
@@ -965,7 +1040,7 @@
             code1 = codeStr;
             setCode(1, codeStr);
             
-            playAudio('scan', 0);
+            playSuuPopSound();
             
             setTimeout(() => { isScanning = true; }, 1200);
         } else if (!code2) {
@@ -974,7 +1049,7 @@
             code2 = codeStr;
             setCode(2, codeStr);
             
-            playAudio('scan', 0);
+            playSuuPopSound();
             checkMatch();
         }
     }
@@ -1014,7 +1089,7 @@
             box1.classList.add("match");
             box2.classList.add("match");
             dailyOkCount++;
-            playOkSound(); // OK時に3連ピンポーン（余韻あり）を再生
+            playOkSound();
         } else {
             scanResult.textContent = "NG";
             scanResult.className = "ng";
@@ -1022,7 +1097,9 @@
             box1.classList.add("mismatch");
             box2.classList.add("mismatch");
             dailyNgCount++;
-            playAudio('boo', 500);
+            
+            // Web Audio API による「ぶ・ぶ・ぶーー」再生（最大音量）
+            playBuBuBuSound();
         }
 
         localStorage.setItem("dailyOkCount", dailyOkCount);
