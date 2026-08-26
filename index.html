@@ -1040,7 +1040,7 @@
             code1 = codeStr;
             setCode(1, codeStr);
             
-            playSuuPopSound();
+            playSuuPopSound(); // 1つ目読み取り時
             
             setTimeout(() => { isScanning = true; }, 1200);
         } else if (!code2) {
@@ -1049,8 +1049,7 @@
             code2 = codeStr;
             setCode(2, codeStr);
             
-            playSuuPopSound();
-            checkMatch();
+            checkMatch(); // 2つ目の読み取り音・判定音は checkMatch で再生
         }
     }
 
@@ -1083,12 +1082,17 @@
 
         const isMatch = (code1 === code2);
         
+        // 2回目の読み取り時もまずシュー音を鳴らす
+        playSuuPopSound();
+
         if (isMatch) {
             scanResult.textContent = "OK";
             scanResult.className = "ok";
             box1.classList.add("match");
             box2.classList.add("match");
             dailyOkCount++;
+
+            // OK時: シュー音が終わった後にピンポーンを鳴らす
             playOkSound();
         } else {
             scanResult.textContent = "NG";
@@ -1098,8 +1102,10 @@
             box2.classList.add("mismatch");
             dailyNgCount++;
             
-            // Web Audio API による「ぶ・ぶ・ぶーー」再生（最大音量）
-            playBuBuBuSound();
+            // NG時: シュー音の余韻（約200ms）が終わった後にぶぶぶー音を鳴らす
+            setTimeout(() => {
+                playBuBuBuSound();
+            }, 200);
         }
 
         localStorage.setItem("dailyOkCount", dailyOkCount);
