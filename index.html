@@ -9,114 +9,63 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>コード・ＱＲ照合システム</title>
     
-    <!-- 既存ライブラリ + QRコード生成用ライブラリ -->
+    <!-- ライブラリ -->
     <script src="https://unpkg.com/@zxing/library@latest"></script>
     <script src="https://unpkg.com/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
 <style>
-    * { 
-        box-sizing: border-box; 
-    }
+    * { box-sizing: border-box; }
 
-    /* iOS Safari 100vh問題対策＆画面全体のスクロール防止 */
     html, body {
         height: 100vh;
         height: calc(var(--vh, 1vh) * 100);
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
+        margin: 0; padding: 0; overflow: hidden;
     }
 
     body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        text-align: center;
-        background: #f4f6f9;
-        color: #333;
-        display: flex;
-        flex-direction: column;
+        text-align: center; background: #f4f6f9; color: #333;
+        display: flex; flex-direction: column;
     }
     
     .tab-bar {
-        flex: 0 0 auto;
-        display: flex; 
-        background: #ffffff; 
-        border-bottom: 2px solid #e0e0e0;
-        position: sticky; 
-        top: 0; 
-        z-index: 1000; 
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        overflow-x: auto; 
-        white-space: nowrap;
+        flex: 0 0 auto; display: flex; background: #ffffff; 
+        border-bottom: 2px solid #e0e0e0; position: sticky; top: 0; z-index: 1000; 
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow-x: auto; white-space: nowrap;
         -webkit-overflow-scrolling: touch;
     }
     .tab-item {
-        flex: 0 0 auto; /* 横幅自動調整で潰れないように変更 */
-        padding: 10px 8px; 
-        font-size: 12px; /* タブ数増加に合わせて文字サイズ調整 */
-        font-weight: bold; 
-        color: #666;
-        background: none; 
-        border: none; 
-        border-bottom: 3px solid transparent; 
-        border-radius: 0;
-        cursor: pointer; 
-        margin: 0; 
-        box-shadow: none !important; 
-        transition: all 0.2s;
+        flex: 0 0 auto; padding: 10px 8px; font-size: 12px; font-weight: bold; 
+        color: #666; background: none; border: none; border-bottom: 3px solid transparent; 
+        border-radius: 0; cursor: pointer; margin: 0; box-shadow: none !important; transition: all 0.2s;
     }
     .tab-item:hover { transform: none; background: #f8f9fa; }
     .tab-item:active { transform: none; }
     .tab-item.active { color: #00aa44; border-bottom-color: #00aa44; background: #f0fff4; }
 
     .container { 
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        padding: 12px; 
-        max-width: 500px; 
-        width: 100%;
-        margin: 0 auto; 
-        overflow: hidden;
+        flex: 1; display: flex; flex-direction: column; padding: 12px; 
+        max-width: 500px; width: 100%; margin: 0 auto; overflow: hidden;
     }
 
 #start-audio-btn {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 50;
-    background: rgba(20, 20, 20, 0.95);
-    color: #ffcc00;
-    font-size: 18px;
-    font-weight: bold;
-    border: none;
-    border-radius: 12px;
-    cursor: pointer;
-    margin: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    animation: pulse 1.5s infinite;
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 50;
+    background: rgba(20, 20, 20, 0.95); color: #ffcc00; font-size: 18px; font-weight: bold;
+    border: none; border-radius: 12px; cursor: pointer; margin: 0;
+    display: flex; justify-content: center; align-items: center; animation: pulse 1.5s infinite;
 }
 
-#start-audio-btn.hidden {
-    display: none !important;
-}
+#start-audio-btn.hidden { display: none !important; }
 
-@keyframes pulse {
-    0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; }
-}
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
 
 #instruction-text { 
-    flex: 0 0 auto;
-    font-size: 14px; color: #555; margin: 0 0 8px 0; font-weight: bold; 
+    flex: 0 0 auto; font-size: 14px; color: #555; margin: 0 0 8px 0; font-weight: bold; 
 }
 
 #interactive.viewport {
-    flex: 0 0 auto;
-    width: 100%; aspect-ratio: 16 / 9; height: auto;
+    flex: 0 0 auto; width: 100%; aspect-ratio: 16 / 9; height: auto;
     margin: 0 auto; background: #000; position: relative; overflow: hidden; border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }       
@@ -153,15 +102,11 @@
 
 .scan-area-guide.ng { border-color: #ff0000; box-shadow: 0 0 15px rgba(255,0,0,0.8); }
 
-    .result-box { 
-        flex: 0 0 auto;
-        display: flex; justify-content: space-between; margin: 10px 0; gap: 10px; 
-    }
+    .result-box { flex: 0 0 auto; display: flex; justify-content: space-between; margin: 10px 0; gap: 10px; }
 
     .code-display {
         background: white; padding: 10px; border-radius: 10px; flex: 1;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.06); border: 2px solid #e2e8f0;
-        transition: all 0.2s ease;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.06); border: 2px solid #e2e8f0; transition: all 0.2s ease;
     }        
 
     .code-display h3 { margin: 0 0 6px 0; font-size: 12px; color: #888; text-transform: uppercase; }
@@ -174,8 +119,7 @@
     .code-display.mismatch { background: #f8d7da; border-color: #dc3545; }
 
     button.action-btn {
-        flex: 0 0 auto;
-        width: 100%; padding: 12px; font-size: 18px; font-weight: bold; margin: 4px 0 8px 0; cursor: pointer;
+        flex: 0 0 auto; width: 100%; padding: 12px; font-size: 18px; font-weight: bold; margin: 4px 0 8px 0; cursor: pointer;
         color: #ffffff; border: none; border-radius: 12px;
         background: linear-gradient(to bottom, #007aff, #0056b3);
         box-shadow: 0 4px 0 #003d80; transition: .15s;
@@ -183,86 +127,48 @@
     button.action-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #003d80; }
 
     #ocr-read-btn {
-        flex: 0 0 auto;
-        display: none; width: 100%; padding: 12px; margin: 4px 0 8px 0; font-size: 18px; font-weight: bold;
+        flex: 0 0 auto; display: none; width: 100%; padding: 12px; margin: 4px 0 8px 0; font-size: 18px; font-weight: bold;
         background: linear-gradient(to bottom, #4CAF50, #2E7D32); color: white; border: none; border-radius: 12px;
         box-shadow: 0 4px 0 #1B5E20; cursor: pointer;
     }
 
     .history-card {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        background: #ffffff; border-radius: 12px; padding: 12px; margin-top: 4px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06); text-align: left; border: 1px solid #e2e8f0;
-        min-height: 100px;
-        overflow: hidden;
+        flex: 1; display: flex; flex-direction: column; background: #ffffff; border-radius: 12px; padding: 12px; margin-top: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06); text-align: left; border: 1px solid #e2e8f0; min-height: 100px; overflow: hidden;
     }
 
     #history-area { 
-        flex: 1;
-        height: 100%;
-        max-height: none;
-        overflow-y: auto; 
-        -webkit-overflow-scrolling: touch;
-        font-size: 13px; line-height: 1.5; 
+        flex: 1; height: 100%; max-height: none; overflow-y: auto; 
+        -webkit-overflow-scrolling: touch; font-size: 13px; line-height: 1.5; 
     }
 
-    .history-day-block {
-        margin-bottom: 12px;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        overflow: hidden;
-        background: #fff;
-    }
+    .history-day-block { margin-bottom: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #fff; }
 
     .history-summary-header {
-        background: #f0f4f8;
-        padding: 6px 8px;
-        font-weight: bold;
-        text-align: center;
-        border-bottom: 1px solid #cbd5e1;
-        font-size: 11px;
+        background: #f0f4f8; padding: 6px 8px; font-weight: bold; text-align: center; border-bottom: 1px solid #cbd5e1; font-size: 11px;
     }
 
     .history-item { 
-        padding: 6px 8px; 
-        margin: 4px 6px; 
-        border-radius: 6px; 
-        font-size: 12px; 
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+        padding: 6px 8px; margin: 4px 6px; border-radius: 6px; font-size: 12px; 
+        display: flex; justify-content: space-between; align-items: center;
     }
     .history-item.ok { background: #eaf8ea; border-left: 4px solid #28a745; }
     .history-item.ng { background: #fdeaea; border-left: 4px solid #dc3545; }
 
     .btn-delete-item {
-        display: none;
-        background: #dc3545;
-        color: #fff;
-        border: none;
-        border-radius: 50%;
-        width: 22px;
-        height: 22px;
-        font-weight: bold;
-        font-size: 12px;
-        cursor: pointer;
-        padding: 0;
-        line-height: 22px;
-        text-align: center;
+        display: none; background: #dc3545; color: #fff; border: none; border-radius: 50%;
+        width: 22px; height: 22px; font-weight: bold; font-size: 12px; cursor: pointer;
+        padding: 0; line-height: 22px; text-align: center;
     }
     
-    .item-delete-mode .btn-delete-item {
-        display: inline-block;
-    }
+    .item-delete-mode .btn-delete-item { display: inline-block; }
 
     .modal-overlay {
         display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0, 0, 0, 0.5); justify-content: center; align-items: center;
     }
     .modal-box {
-        background: #fff; padding: 20px; border-radius: 12px; max-width: 95%; width: 370px; /* 前回の最適化を適用 */
+        background: #fff; padding: 20px; border-radius: 12px; max-width: 95%; width: 370px;
         box-shadow: 0 4px 20px rgba(0,0,0,0.2); text-align: center;
     }
     .modal-buttons { margin-top: 15px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
@@ -274,38 +180,18 @@
 
     #csv-export-modal { z-index: 10000; }
     #master-csv-modal { z-index: 10000; }
-    #qr-gen-modal { z-index: 10000; } /* 新規追加 */
+    #qr-gen-modal { z-index: 10000; }
     #date-select-modal-overlay { z-index: 20000; }
     #custom-modal-overlay { z-index: 20000; }
     #clear-modal-overlay { z-index: 20000; }
 
-    .csv-upload-box {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-    }
+    .csv-upload-box { display: flex; align-items: center; justify-content: center; gap: 8px; }
     .custom-file-btn {
-        display: inline-block;
-        padding: 6px 10px;
-        background-color: #007aff;
-        color: #ffffff;
-        border-radius: 4px;
-        font-size: 13px;
-        cursor: pointer;
-        user-select: none;
-        flex-shrink: 0;
-        white-space: nowrap;
+        display: inline-block; padding: 6px 10px; background-color: #007aff; color: #ffffff;
+        border-radius: 4px; font-size: 13px; cursor: pointer; user-select: none; flex-shrink: 0; white-space: nowrap;
     }    
-    .custom-file-btn:hover {
-        background-color: #0056b3;
-    }
-    .csv-status {
-        font-size: 12px;
-        color: #333333;
-        text-align: left;
-        line-height: 1.3;
-    }
+    .custom-file-btn:hover { background-color: #0056b3; }
+    .csv-status { font-size: 12px; color: #333333; text-align: left; line-height: 1.3; }
     .flying-tile {
         position: fixed; z-index: 9999; pointer-events: none; background: transparent !important;
         color: #00ff66; font-size: 24px; font-weight: bold; white-space: nowrap;
@@ -319,7 +205,7 @@
     <div class="tab-bar">
         <button id="tab-barcode" class="tab-item active">コード照合</button>
         <button id="tab-ocr" class="tab-item">文字照合</button>
-        <button id="tab-qr-gen" class="tab-item">QR作成</button> <!-- 新規追加 -->
+        <button id="tab-qr-gen" class="tab-item">QR作成</button>
         <button id="tab-csv-export" class="tab-item">CSV出力</button>
         <button id="tab-history-clear" class="tab-item">履歴削除</button>
         <button id="tab-master-csv" class="tab-item">マスターCSV</button>
@@ -331,9 +217,7 @@
         <div id="interactive" class="viewport">
             <video id="video-element" playsinline webkit-playsinline muted autoplay></video>
             <canvas id="overlay-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15;"></canvas>
-        
             <button id="start-audio-btn">📷 タップしてカメラを起動</button>
-
             <div class="scan-area-guide">
                 <div id="scan-result"></div>
             </div>
@@ -434,14 +318,18 @@
         </div>
     </div>
 
-    <!-- QRコード生成モーダル（新規追加） -->
+    <!-- QRコード生成モーダル -->
     <div id="qr-gen-modal" class="modal-overlay">
         <div class="modal-box">
             <h3 style="margin-top:0;">🔳 QRコード作成</h3>
-            <p style="font-size:12px; color:#666; margin-bottom:10px;">名前や文字を入力すると自動でQRコードが生成されます</p>
-            <input type="text" id="qr-text-input" placeholder="名前を入力してください" style="width:100%; padding:10px; font-size:15px; border:2px solid #ddd; border-radius:6px; box-sizing:border-box; margin-bottom:12px;">
-            <div id="qrcode-display" style="display:flex; justify-content:center; align-items:center; min-height:128px; margin-bottom:16px;"></div>
-            <button id="close-qr-modal-btn" class="modal-btn modal-btn-cancel" style="width:100%;">閉じる</button>
+            <p style="font-size:12px; color:#666; margin-bottom:10px;">文字を入力するとQRコードが生成されます</p>
+            <input type="text" id="qr-text-input" placeholder="名前や文字列を入力してください" style="width:100%; padding:10px; font-size:15px; border:2px solid #ddd; border-radius:6px; box-sizing:border-box; margin-bottom:12px;">
+            <div id="qrcode-display" style="display:flex; justify-content:center; align-items:center; min-height:128px; margin-bottom:12px;"></div>
+            
+            <div style="display:flex; flex-direction:column; gap:8px;">
+                <button id="download-qr-img-btn" class="modal-btn modal-btn-ok" style="width:100%; display:none; background:#28a745;">💾 画像を保存（PNG）</button>
+                <button id="close-qr-modal-btn" class="modal-btn modal-btn-cancel" style="width:100%;">閉じる</button>
+            </div>
         </div>
     </div>
 
@@ -488,7 +376,7 @@
     let inactivityTimer = null;
     const INACTIVITY_LIMIT_MS = 5 * 60 * 1000;
 
-    let qrcodeObj = null; // QR生成用インスタンス保持変数
+    let qrcodeObj = null;
 
     const audioMap = {
         scan: new Audio('scan.mp3'),
@@ -902,7 +790,6 @@
                 }
 
                 overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-
                 overlayCtx.strokeStyle = "#00ff66";
                 overlayCtx.fillStyle = "rgba(0, 255, 102, 0.22)";
                 overlayCtx.lineWidth = 4;
@@ -925,7 +812,6 @@
                 const rectH = (maxY - minY) + (margin * 2);
 
                 overlayCtx.rect(rectX, rectY, rectW, rectH);
-
                 overlayCtx.stroke();
                 overlayCtx.fill();
             }
@@ -1258,7 +1144,6 @@
             const headerTitle = group.isToday ? `【本日】 ${dStr}${weekdayStr}` : `📅 ${dStr}${weekdayStr}`;
 
             html += `<div class="history-day-block">`;
-            
             html += `
                 <div class="history-summary-header">
                     <strong>${headerTitle}</strong>
@@ -1365,14 +1250,14 @@
     function setupTabs() {
         const tabBarcode = document.getElementById("tab-barcode");
         const tabOcr = document.getElementById("tab-ocr");
-        const tabQrGen = document.getElementById("tab-qr-gen"); // 新規追加
+        const tabQrGen = document.getElementById("tab-qr-gen");
         const tabCsvExport = document.getElementById("tab-csv-export");
         const tabHistoryClear = document.getElementById("tab-history-clear");
         const tabMasterCsv = document.getElementById("tab-master-csv");
 
         const csvExportModal = document.getElementById("csv-export-modal");
         const masterCsvModal = document.getElementById("master-csv-modal");
-        const qrGenModal = document.getElementById("qr-gen-modal"); // 新規追加
+        const qrGenModal = document.getElementById("qr-gen-modal");
 
         tabBarcode.addEventListener("click", () => {
             tabBarcode.classList.add("active");
@@ -1406,7 +1291,6 @@
             resetScan();
         });
 
-        // QR作成モーダルの呼び出し
         tabQrGen.addEventListener("click", () => {
             qrGenModal.style.display = "flex";
         });
@@ -1499,7 +1383,6 @@
             masterCsvModal.style.display = "none";
         });
 
-        // QRモーダル閉じるボタンイベント
         document.getElementById("close-qr-modal-btn").addEventListener("click", () => {
             qrGenModal.style.display = "none";
         });
@@ -1515,9 +1398,9 @@
             });
         }
 
-        // QRコード動的生成処理
         const qrInput = document.getElementById("qr-text-input");
         const qrDisplay = document.getElementById("qrcode-display");
+        const downloadQrBtn = document.getElementById("download-qr-img-btn");
 
         qrInput.addEventListener("input", () => {
             qrDisplay.innerHTML = "";
@@ -1525,12 +1408,39 @@
             if (textVal) {
                 qrcodeObj = new QRCode(qrDisplay, {
                     text: textVal,
-                    width: 128,
-                    height: 128,
+                    width: 160,
+                    height: 160,
                     colorDark : "#000000",
                     colorLight : "#ffffff",
                     correctLevel : QRCode.CorrectLevel.H
                 });
+                downloadQrBtn.style.display = "block";
+            } else {
+                downloadQrBtn.style.display = "none";
+            }
+        });
+
+        downloadQrBtn.addEventListener("click", () => {
+            const canvas = qrDisplay.querySelector("canvas");
+            const img = qrDisplay.querySelector("img");
+            let imgUrl = "";
+
+            if (canvas) {
+                imgUrl = canvas.toDataURL("image/png");
+            } else if (img && img.src) {
+                imgUrl = img.src;
+            }
+
+            if (imgUrl) {
+                const link = document.createElement("a");
+                const textVal = qrInput.value.trim() || "qrcode";
+                link.href = imgUrl;
+                link.download = `QR_${textVal}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } else {
+                showAppAlert("画像の保存に失敗しました。");
             }
         });
 
