@@ -392,20 +392,6 @@
         return globalAudioCtx;
     }
 
-    // iOS/モバイル環境用：ダミー（無音）バッファーの再生処理
-    function playDummyAudio() {
-        try {
-            const ctx = getAudioContext();
-            const dummyBuffer = ctx.createBuffer(1, 1, 22050);
-            const dummySource = ctx.createBufferSource();
-            dummySource.buffer = dummyBuffer;
-            dummySource.connect(ctx.destination);
-            dummySource.start(0);
-        } catch (e) {
-            console.warn("ダミーオーディオ再生スキップ:", e);
-        }
-    }
-
     // ノイズバッファーの生成（ホワイトノイズ）
     function createNoiseBuffer(ctx, duration) {
         const bufferSize = ctx.sampleRate * duration;
@@ -595,7 +581,6 @@
 
     function unlockAudioContext() {
         getAudioContext();
-        playDummyAudio();
     }
 
     function triggerFlyAnimation(targetBox, textVal) {
