@@ -102,7 +102,21 @@
     100% { top: 100%; background: linear-gradient(to top, rgba(0,255,102,0) 0%, rgba(0,255,102,0.9) 100%); }
 }
 
-.scan-area-guide.ng { border-color: #ff0000; box-shadow: 0 0 15px rgba(255,0,0,0.8); }
+/* --- NG時のスタイル修正追加箇所 --- */
+.scan-area-guide.ng { 
+    border-color: #ff0000; 
+    box-shadow: 0 0 15px rgba(255,0,0,0.8), inset 0 0 15px rgba(255,0,0,0.3); 
+}
+
+.scan-area-guide.ng::after {
+    animation: scanLineNg 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes scanLineNg {
+    0% { top: -30px; background: linear-gradient(to bottom, rgba(255,0,0,0) 0%, rgba(255,0,0,0.9) 100%); }
+    100% { top: 100%; background: linear-gradient(to top, rgba(255,0,0,0) 0%, rgba(255,0,0,0.9) 100%); }
+}
+/* --------------------------------- */
 
     .result-box { flex: 0 0 auto; display: flex; justify-content: space-between; margin: 10px 0; gap: 10px; }
 
